@@ -633,7 +633,9 @@ async function integrateDiary() {
       state.diaryResult.content = d.content;
       state.diaryResult.title = d.title;
       state.diaryResult.keywords = d.keywords;
-      renderDiaryResult(); setTimeout(initMap, 200);
+      // 判断当前在哪个视图，渲染到正确容器
+      const inHistory = !document.getElementById('view-history').classList.contains('hidden');
+      renderDiaryResult(inHistory ? 'historyCard' : 'step-result', inHistory ? 'mapDetail' : 'map');
       toast('日记已更新', 'success');
       // 保留聊天记录，AI 可以继续对话
       state.chatMessages.push({ role: 'assistant', content: '✅ 日记已更新！还有什么要修改的吗？' });
