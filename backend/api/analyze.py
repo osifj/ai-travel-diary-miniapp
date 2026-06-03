@@ -135,6 +135,7 @@ async def analyze_photos(request: AnalyzeRequest):
                 ),
                 "location_status": photo.get("location_status") or "unknown",
                 "location_source": photo.get("location_source") or "unknown",
+                "place_type": photo.get("place_type"),
             }
             if request.geocode and photo.get("has_gps"):
                 lat = photo.get("latitude")
@@ -155,6 +156,7 @@ async def analyze_photos(request: AnalyzeRequest):
                             ),
                             "location_status": resolved_status,
                             "location_source": location_source,
+                            "place_type": resolved_location.get("place_type") or location.get("place_type"),
                         }
                         update_photo_location(
                             photo_id=photo_id,
@@ -163,6 +165,7 @@ async def analyze_photos(request: AnalyzeRequest):
                             district=location.get("district"),
                             address=location.get("address"),
                             place_name=location.get("place_name"),
+                            place_type=resolved_location.get("place_type"),
                             location_status=location.get("location_status", "found"),
                             location_source=location_source,
                         )

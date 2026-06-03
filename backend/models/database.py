@@ -127,6 +127,7 @@ def _ensure_photo_columns(cursor: sqlite3.Cursor):
         "time_source": "TEXT DEFAULT 'unknown'",
         "location_source": "TEXT DEFAULT 'unknown'",
         "ai_fun_fact": "TEXT",
+        "place_type": "TEXT",
     }
     for name, definition in columns.items():
         if name not in existing:
@@ -269,17 +270,18 @@ def update_photo_location(
     place_name: Optional[str] = None,
     location_status: str = "unknown",
     location_source: Optional[str] = None,
+    place_type: Optional[str] = None,
 ):
     """更新照片的地点解析结果."""
     conn = get_connection()
     conn.execute(
         """UPDATE photos SET
             country = ?, city = ?, district = ?, address = ?,
-            place_name = ?, location_status = ?,
+            place_name = ?, place_type = ?, location_status = ?,
             location_source = COALESCE(?, location_source)
            WHERE id = ?""",
-        (country, city, district, address, place_name, location_status,
-         location_source, photo_id)
+        (country, city, district, address, place_name, place_type,
+         location_status, location_source, photo_id)
     )
     conn.commit()
     conn.close()

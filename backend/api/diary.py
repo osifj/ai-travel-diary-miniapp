@@ -27,7 +27,7 @@ router = APIRouter(prefix="/diary", tags=["diary"])
 
 class GenerateDiaryRequest(BaseModel):
     photo_ids: list[int]
-    # 可选：手动指定标题，否则自动生成
+    user_id: str = "default"
     custom_title: Optional[str] = None
 
 
@@ -95,6 +95,7 @@ async def create_diary(request: GenerateDiaryRequest):
             "city": p.get("city"),
             "address": p.get("address"),
             "place_name": precise_place_name,
+            "place_type": p.get("place_type"),
             "time_source": p.get("time_source"),
             "location_source": p.get("location_source"),
             "location_status": p.get("location_status"),
@@ -147,6 +148,7 @@ async def create_diary(request: GenerateDiaryRequest):
             content=diary_data["content"],
             keywords=diary_data["keywords"],
             photo_ids=request.photo_ids,
+            user_id=request.user_id or "default",
             weather_summary=diary_data.get("weather_summary"),
             place_intro=diary_data.get("place_intro"),
             generator=diary_data.get("generator", "template"),

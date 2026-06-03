@@ -141,12 +141,29 @@ def _nominatim_geocode(latitude: float, longitude: float) -> dict:
         data = resp.json()
 
         addr = data.get("address", {})
+        # 地点类型映射
+        osm_type = data.get("type", "")
+        category = data.get("category", "")
+        type_map = {
+            "shop": "商店", "mall": "商场", "supermarket": "超市",
+            "restaurant": "餐厅", "cafe": "咖啡馆", "fast_food": "快餐店",
+            "park": "公园", "garden": "花园", "playground": "游乐园",
+            "hotel": "酒店", "hostel": "旅馆",
+            "museum": "博物馆", "gallery": "画廊", "theatre": "剧院",
+            "tourism": "景点", "attraction": "景点",
+            "station": "车站", "airport": "机场",
+            "school": "学校", "university": "大学", "library": "图书馆",
+            "hospital": "医院", "pharmacy": "药店",
+        }
+        place_type_cn = type_map.get(osm_type, type_map.get(category, osm_type))
+
         return {
             "country": addr.get("country"),
             "city": addr.get("city") or addr.get("town") or addr.get("state"),
             "district": addr.get("suburb") or addr.get("district"),
             "address": data.get("display_name"),
             "place_name": data.get("name"),
+            "place_type": place_type_cn if place_type_cn else None,
             "location_status": "found",
         }
     except Exception as e:
