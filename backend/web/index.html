@@ -3,8 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>AI 游玩日志生成器</title>
+<title>AI 游玩日志</title>
+
+<!-- PWA -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AI 游记">
+<meta name="theme-color" content="#5B6ABF">
+<meta name="description" content="上传照片自动生成旅行日记">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%235B6ABF'/><text x='50' y='65' text-anchor='middle' font-size='45'>📸</text></svg>">
+<link rel="manifest" id="pwaManifest">
+
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <style>
   :root {
     --p: #5B6ABF; --p2: #7C8EE5; --p-glow: rgba(91,106,191,0.3);
@@ -450,7 +462,58 @@
   .slider-row .val { width:32px; font-size:11px; color:var(--s); text-align:right; }
   .filter-actions { display:flex; gap:8px; margin-top:12px; }
   .filter-actions button { flex:1; }
+
+  /* 批量操作 */
+  .batch-bar {
+    position: fixed; bottom:0; left:0; right:0; z-index:200;
+    background: var(--card); padding: 10px 16px;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+    display:flex; align-items:center; gap:10px;
+    transform: translateY(100%); transition: transform 0.3s cubic-bezier(.4,0,.2,1);
+  }
+  .batch-bar.show { transform: translateY(0); }
+  .batch-bar .count { font-size:14px; font-weight:600; color:var(--p); white-space:nowrap; }
+  .batch-bar button { flex:1; height:40px; border-radius:10px; border:none; font-size:14px; font-weight:600; cursor:pointer; }
+  .batch-bar .btn-danger { background:var(--r); color:#fff; }
+  .batch-bar .btn-export { background:var(--p); color:#fff; }
+  .batch-bar .btn-cancel { background:var(--l); color:var(--t); }
+  .diary-check {
+    position: absolute; top:8px; left:8px; z-index:10;
+    width:22px; height:22px; border-radius:50%;
+    border:2px solid var(--s); background:var(--card);
+    display:none; align-items:center; justify-content:center;
+    font-size:12px; color:#fff; cursor:pointer;
+    transition: all 0.2s;
+  }
+  .diary-check.checked { background:var(--p); border-color:var(--p); }
+  .batch-mode .diary-check { display:flex; }
+  .batch-mode .diary-card { cursor:default; }
+  .batch-mode .del-btn { display:none; }
+  .batch-toggle {
+    padding:4px 10px; border-radius:14px; border:1px solid var(--l);
+    background:var(--card); color:var(--s); font-size:12px; cursor:pointer;
+    transition: all 0.2s;
+  }
+  .batch-toggle.active { background:var(--p); color:#fff; border-color:var(--p); }
 </style>
+<script>
+// PWA Manifest + Service Worker (内联)
+(function(){
+  const m = {
+    name:'AI 游玩日志',short_name:'AI 游记',
+    start_url:location.href,display:'standalone',
+    background_color:'#F7F8FC',theme_color:'#5B6ABF',
+    orientation:'portrait',
+    icons:[{src:'data:image/svg+xml,'+encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%235B6ABF'/><text x='50' y='65' text-anchor='middle' font-size='45'>📸</text></svg>"),sizes:'100x100',type:'image/svg+xml',purpose:'any'}]
+  };
+  document.getElementById('pwaManifest').href = URL.createObjectURL(new Blob([JSON.stringify(m)],{type:'application/json'}));
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register(URL.createObjectURL(new Blob([
+      'self.addEventListener("install",e=>self.skipWaiting());self.addEventListener("activate",e=>e.waitUntil(clients.claim()));self.addEventListener("fetch",e=>{e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).then(resp=>{if(resp.ok){const c=resp.clone();caches.open("v1").then(c2=>c2.put(e.request,c));}return resp;}).catch(()=>caches.match(e.request))))});'
+    ],{type:'application/javascript'})));
+  }
+})();
+</script>
 </head>
 <body>
 
@@ -525,11 +588,23 @@
 
 <!-- ====== 历史记录 ====== -->
 <div id="view-history" class="hidden">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+    <div style="font-size:13px;color:var(--s)" id="batchHint"></div>
+    <button class="batch-toggle" id="btnBatchToggle" onclick="toggleBatchMode()">☑ 批量</button>
+  </div>
+  <div id="statsPanel" class="card hidden anim-in"></div>
   <div id="historyList"></div>
   <div id="historyDetail" class="hidden"></div>
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- 批量操作栏 -->
+<div class="batch-bar" id="batchBar">
+  <span class="count" id="batchCount">已选 0 篇</span>
+  <button class="btn-export" onclick="batchExport()">📥 导出选中</button>
+  <button class="btn-danger" onclick="batchDelete()">🗑️ 删除选中</button>
+  <button class="btn-cancel" onclick="toggleBatchMode()">取消</button>
+</div>
+
 <script>
 function toast(msg, type) {
   const t = document.getElementById('toast');
@@ -564,7 +639,7 @@ function switchView(v) {
   document.getElementById('btnNew').classList.toggle('on', v === 'new');
   document.getElementById('btnHistory').classList.toggle('on', v === 'history');
   document.getElementById('searchInput').style.display = v === 'history' ? '' : 'none';
-  if (v === 'history') { el('historyList').innerHTML='<div style="text-align:center;padding:60px"><div class="spinner"></div></div>'; loadHistory(); }
+  if (v === 'history') { el('historyList').innerHTML='<div style="text-align:center;padding:60px"><div class="spinner"></div></div>'; loadHistory(); loadStats(); }
 }
 
 // 暗色模式
@@ -582,6 +657,24 @@ function toggleDark() {
 
 // ===== 状态 =====
 const state = { files:[], photoIds:[], uploadResults:[], analyzeResults:[], diaryResult:null, diaryPhotos:[], chatMessages:[] };
+let batchMode = false, selectedDiaries = new Set();
+
+// ===== PWA 安装提示 =====
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; });
+function showInstallPrompt() {
+  if (window.matchMedia('(display-mode: standalone)').matches) return;
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+  if (isIOS && isSafari) {
+    toast('📱 点 Safari 底部「分享」→「添加到主屏幕」', 'success');
+    setTimeout(() => document.querySelector('.toast').textContent = '📱 分享 → 加到主屏幕', 3000);
+  } else if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt = null;
+  }
+}
+setTimeout(showInstallPrompt, 2000);
 const el = id => document.getElementById(id);
 
 // ===== 文件 =====
@@ -736,8 +829,17 @@ function renderDiaryResult(targetId, mapId) {
     <div style="margin-bottom:10px">${(d.keywords||[]).map(k=>`<span class="tag">${k}</span>`).join('')}</div>
     ${d.weather_summary ? `<div class="info-box weather">🌤️ ${d.weather_summary}</div>` : '<div class="info-box weather" style="height:44px;background:linear-gradient(90deg,#f0f0f5 25%,#e0e0e8 50%,#f0f0f5 75%);background-size:200% 100%;animation:shimmer 1.5s infinite"></div>'}
     ${d.place_intro?`<div class="info-box place">📍 ${d.place_intro}</div>`:''}
-    <div id="${mapId}" class="map-container"></div>
+    <div id="${mapId}" class="map-container" style="position:relative">
+      <button onclick="exportMapImage('${mapId}')" style="position:absolute;top:8px;right:8px;z-index:1000;background:var(--card);border:none;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.15)" title="导出地图图片">📥 导出地图</button>
+    </div>
     <div class="diary-content">${ps.map(p=>`<p>${p}</p>`).join('')}</div>
+    <div class="section-div"></div>
+    <div class="card-title" style="font-size:14px">📷 追加照片</div>
+    <input type="file" id="addPhotoInput" accept="image/*" multiple hidden onchange="handleAddPhotos(event)">
+    <button class="btn btn-secondary btn-small" onclick="document.getElementById('addPhotoInput').click()">+ 添加照片到此日记</button>
+    <div id="addPhotoProgress" class="hidden" style="text-align:center;padding:8px 0"></div>
+    <p style="font-size:11px;color:var(--s);margin-top:4px">添加新照片后会自动重新生成日记，原有照片不会重新上传</p>
+
     <div class="section-div"></div>
     <div class="card-title" style="font-size:14px">💬 与 AI 讨论修改</div>
     <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">
@@ -885,11 +987,133 @@ function renderChat() {
   area.scrollTop = area.scrollHeight;
 }
 
+// ===== 追加照片 =====
+async function handleAddPhotos(event) {
+  const files = Array.from(event.target.files).filter(f => f.type.startsWith('image/') || /\.(heic|heif)$/i.test(f.name));
+  if (!files.length) return;
+  if (files.length > 5) { toast('最多追加 5 张', 'error'); return; }
+
+  const progress = document.getElementById('addPhotoProgress');
+  progress.classList.remove('hidden');
+  progress.innerHTML = `<div class="dot-pulse"><span></span><span></span><span></span></div><p style="color:var(--s);font-size:12px">上传中...</p>`;
+
+  const extra = {};
+  const d = document.getElementById('travelDate')?.value, t = document.getElementById('travelTime')?.value||'00:00';
+  const p = document.getElementById('travelPlace')?.value?.trim(), a = document.getElementById('travelAddr')?.value?.trim();
+  if (d) extra.client_taken_time = `${d} ${t}:00`;
+  if (p) { extra.client_place_name = p; if (a) extra.client_address = a; }
+
+  const newIds = [];
+  for (let i = 0; i < files.length; i++) {
+    const fd = new FormData(); fd.append('file', files[i]);
+    Object.entries(extra).forEach(([k,v]) => fd.append(k,v));
+    try {
+      const r = await fetch('/upload', { method: 'POST', body: fd });
+      const d2 = await r.json();
+      if (d2.success) { newIds.push(d2.photo_id); state.photoIds.push(d2.photo_id); }
+    } catch(e) { toast('上传失败: ' + e.message, 'error'); }
+  }
+
+  if (!newIds.length) { progress.classList.add('hidden'); toast('上传失败', 'error'); return; }
+
+  progress.innerHTML = `<div class="dot-pulse"><span></span><span></span><span></span></div><p style="color:var(--s);font-size:12px">分析新照片...</p>`;
+
+  try {
+    const r = await fetch('/analyze', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({photo_ids:newIds,geocode:true}) });
+    const d3 = await r.json();
+    state.analyzeResults = (state.analyzeResults||[]).concat(d3.results||[]);
+  } catch(e) { toast('分析失败: ' + e.message, 'error'); progress.classList.add('hidden'); return; }
+
+  progress.innerHTML = `<div class="dot-pulse"><span></span><span></span><span></span></div><p style="color:var(--s);font-size:12px">重新生成日记...</p>`;
+
+  try {
+    const r2 = await fetch('/diary/generate', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({photo_ids:state.photoIds,user_id:nickname||'default'}) });
+    const d4 = await r2.json();
+    if (d4.success) {
+      state.diaryResult = d4;
+      if (d4.diary_id) {
+        try { const dr = await fetch(`/diary/${d4.diary_id}`); const dd = await dr.json(); if(dd.success) state.diaryPhotos = dd.photos||[]; } catch(e) {}
+      }
+      const inHistory = !document.getElementById('view-history').classList.contains('hidden');
+      renderDiaryResult(inHistory ? 'historyCard' : 'step-result', inHistory ? 'mapDetail' : 'map');
+      toast(`已追加 ${files.length} 张照片并更新日记`, 'success');
+    } else {
+      toast('日记生成失败', 'error');
+    }
+  } catch(e) { toast('生成失败: ' + e.message, 'error'); }
+  progress.classList.add('hidden');
+  event.target.value = '';
+}
+
+// ===== 旅行统计 =====
+async function loadStats() {
+  const uid = nickname || 'default';
+  try {
+    const r = await fetch(`/diary/?user_id=${encodeURIComponent(uid)}&limit=200`);
+    const d = await r.json();
+    const diaries = d.diaries || [];
+    if (!diaries.length) { document.getElementById('statsPanel').classList.add('hidden'); return; }
+
+    // 统计
+    const cities = new Set();
+    let totalPhotos = 0;
+    const dates = [];
+    diaries.forEach(di => {
+      if (di.city && di.city !== '未知') cities.add(di.city);
+      totalPhotos += (di.photo_ids || []).length;
+      if (di.date) dates.push(di.date);
+    });
+    dates.sort();
+    const totalDays = dates.length ? Math.max(1, Math.ceil((new Date(dates[dates.length-1]) - new Date(dates[0])) / 86400000) + 1) : 0;
+
+    // 时间线
+    const timeline = diaries.map(di => ({
+      id: di.id, title: di.title, date: di.date, city: di.city,
+      photos: (di.photo_ids||[]).length, preview: (di.content||'').slice(0,60)
+    })).sort((a,b) => (a.date||'').localeCompare(b.date||''));
+
+    const panel = document.getElementById('statsPanel');
+    panel.classList.remove('hidden');
+    panel.innerHTML = `
+      <div style="display:flex;gap:8px;text-align:center;margin-bottom:14px">
+        <div style="flex:1;background:linear-gradient(135deg,#EEF0FA,#E0E4FF);border-radius:12px;padding:12px 8px">
+          <div style="font-size:24px;font-weight:800;color:var(--p)">${diaries.length}</div>
+          <div style="font-size:11px;color:var(--s)">篇日记</div>
+        </div>
+        <div style="flex:1;background:linear-gradient(135deg,#E8F5E9,#D0E8D2);border-radius:12px;padding:12px 8px">
+          <div style="font-size:24px;font-weight:800;color:var(--g)">${cities.size}</div>
+          <div style="font-size:11px;color:var(--s)">座城市</div>
+        </div>
+        <div style="flex:1;background:linear-gradient(135deg,#FFF3E0,#FFE8CC);border-radius:12px;padding:12px 8px">
+          <div style="font-size:24px;font-weight:800;color:var(--w)">${totalPhotos}</div>
+          <div style="font-size:11px;color:var(--s)">张照片</div>
+        </div>
+        <div style="flex:1;background:linear-gradient(135deg,#FCE4EC,#F8D0DA);border-radius:12px;padding:12px 8px">
+          <div style="font-size:24px;font-weight:800;color:var(--r)">${totalDays}</div>
+          <div style="font-size:11px;color:var(--s)">天旅程</div>
+        </div>
+      </div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--p)">📅 时间线</div>
+      <div style="position:relative;padding-left:20px;border-left:2px solid var(--l);max-height:240px;overflow-y:auto">
+        ${timeline.map((t,i) => `
+          <div style="position:relative;margin-bottom:10px;cursor:pointer" onclick="showDiaryDetail(${t.id})">
+            <div style="position:absolute;left:-26px;top:3px;width:12px;height:12px;border-radius:50%;background:var(--p);border:2px solid var(--card)"></div>
+            <div style="font-size:11px;color:var(--s)">${t.date||'?'}</div>
+            <div style="font-size:13px;font-weight:600;color:var(--t)">${t.title}</div>
+            <div style="font-size:11px;color:var(--s)">📍${t.city||'?'} · 📷${t.photos}张</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  } catch(e) { console.error('Stats load error:', e); }
+}
+
 // ===== 历史记录 =====
 async function loadHistory() {
   const uid = nickname||'default';
   const q = document.getElementById('searchInput').value.trim();
   el('historyDetail').classList.add('hidden'); el('historyDetail').innerHTML='';
+  if (batchMode) { selectedDiaries.clear(); updateBatchUI(); }
   el('historyList').innerHTML = '<div style="text-align:center;padding:40px"><div class="spinner"></div></div>';
   try {
     const url = q
@@ -899,7 +1123,8 @@ async function loadHistory() {
     const d=await r.json();
     if(!d.success||!d.diaries.length){ el('historyList').innerHTML='<div class="empty-state">📭<br>还没有日记记录</div>'; return; }
     el('historyList').innerHTML = d.diaries.map((di,i) => `
-      <div class="diary-card" style="position:relative;animation-delay:${i*0.06}s" onclick="showDiaryDetail(${di.id})">
+      <div class="diary-card" style="position:relative;animation-delay:${i*0.06}s" id="card-${di.id}" onclick="${batchMode ? `toggleSelect(${di.id},event)` : `showDiaryDetail(${di.id})`}">
+        <div class="diary-check${selectedDiaries.has(di.id)?' checked':''}" onclick="event.stopPropagation();toggleSelect(${di.id},event)">${selectedDiaries.has(di.id)?'✓':''}</div>
         <div class="diary-card-body">
           <div class="diary-card-title">${di.title}</div>
           <div class="diary-card-meta">📅${di.date} · 📍${di.city||'未知'} · 📷${(di.photo_ids||[]).length}张</div>
@@ -909,7 +1134,79 @@ async function loadHistory() {
         <button class="del-btn" onclick="event.stopPropagation();deleteDiary(${di.id})" title="删除">🗑️</button>
       </div>
     `).join('');
+    if (batchMode) el('historyList').closest('#view-history')?.classList.add('batch-mode');
   } catch(err){ el('historyList').innerHTML=`<p class="text-error">${err.message}</p>`; }
+}
+
+function toggleBatchMode() {
+  batchMode = !batchMode;
+  const toggle = document.getElementById('btnBatchToggle');
+  toggle.classList.toggle('active', batchMode);
+  toggle.textContent = batchMode ? '☑ 取消' : '☑ 批量';
+  selectedDiaries.clear();
+  const vh = el('view-history');
+  vh.classList.toggle('batch-mode', batchMode);
+  updateBatchUI();
+  if (batchMode) loadHistory();
+}
+
+function toggleSelect(id, evt) {
+  if (!batchMode) return;
+  evt.stopPropagation();
+  if (selectedDiaries.has(id)) selectedDiaries.delete(id);
+  else selectedDiaries.add(id);
+  const check = document.querySelector(`#card-${id} .diary-check`);
+  if (check) { check.classList.toggle('checked', selectedDiaries.has(id)); check.textContent = selectedDiaries.has(id) ? '✓' : ''; }
+  updateBatchUI();
+}
+
+function updateBatchUI() {
+  const bar = document.getElementById('batchBar');
+  const count = document.getElementById('batchCount');
+  const hint = document.getElementById('batchHint');
+  count.textContent = `已选 ${selectedDiaries.size} 篇`;
+  bar.classList.toggle('show', batchMode && selectedDiaries.size > 0);
+  if (hint) hint.textContent = batchMode ? (selectedDiaries.size ? `已选 ${selectedDiaries.size} 篇` : '点击日记勾选') : '';
+}
+
+async function batchDelete() {
+  if (!selectedDiaries.size) return;
+  if (!confirm(`确定删除选中的 ${selectedDiaries.size} 篇日记吗？此操作不可恢复。`)) return;
+  let ok=0, fail=0;
+  for (const id of selectedDiaries) {
+    try {
+      const r = await fetch(`/diary/${id}`, { method:'DELETE' });
+      const d = await r.json();
+      if (d.success) ok++; else fail++;
+    } catch(e) { fail++; }
+  }
+  toast(`已删除 ${ok} 篇` + (fail?`，${fail} 篇失败`:''), fail?'error':'success');
+  selectedDiaries.clear();
+  loadHistory();
+}
+
+async function batchExport() {
+  if (!selectedDiaries.size) return;
+  toast('正在导出...', '');
+  const parts = [];
+  for (const id of selectedDiaries) {
+    try {
+      const r = await fetch(`/diary/${id}`);
+      const d = await r.json();
+      if (d.success && d.diary) {
+        const di = d.diary;
+        parts.push(`# ${di.title}\n\n> ${di.date} · ${di.city||'未知'}\n\n${di.weather_summary?'🌤️ '+di.weather_summary+'\n\n':''}${di.place_intro?'📍 '+di.place_intro+'\n\n':''}${di.content}\n\n**关键词**: ${(di.keywords||[]).join(' · ')}\n\n---\n`);
+      }
+    } catch(e) {}
+  }
+  if (!parts.length) { toast('导出失败', 'error'); return; }
+  const blob = new Blob([parts.join('\n')], { type:'text/markdown' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `travel_diaries_${new Date().toISOString().slice(0,10)}.md`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast(`已导出 ${parts.length} 篇日记`, 'success');
 }
 
 async function deleteDiary(id) {
@@ -939,6 +1236,29 @@ async function showDiaryDetail(id) {
 function backToHistory() { el('historyList').classList.remove('hidden'); el('historyDetail').classList.add('hidden'); }
 
 // ===== 地图 =====
+async function exportMapImage(mapId) {
+  const el = document.getElementById(mapId);
+  if (!el) return;
+  toast('正在生成地图图片...', '');
+  try {
+    const canvas = await html2canvas(el.querySelector('.leaflet-container') || el, {
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: null,
+    });
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `travel_map_${new Date().toISOString().slice(0,10)}.png`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('地图已导出', 'success');
+  } catch(e) {
+    toast('导出失败: ' + e.message, 'error');
+  }
+}
+
 function _renderMap(mapId, photos) {
   const el2 = document.getElementById(mapId); if (!el2) return;
   const markers = (photos||[]).filter(p => p.has_gps && p.latitude && p.longitude);

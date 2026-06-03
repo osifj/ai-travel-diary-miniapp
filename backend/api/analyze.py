@@ -59,11 +59,12 @@ def _analyze_single(photo: dict, geocode: bool, using_mock: bool) -> dict:
 
         processed_path = strip_exif_and_compress(original_path)
 
-        # 2. AI 分析
+        # 2. AI 分析（传入位置上下文）
+        loc_ctx = f"{photo.get('city','')} {photo.get('district','')} {photo.get('place_name','')} {photo.get('address','')}".strip()
         if using_mock:
             ai_result = analyze_image_mock(processed_path)
         else:
-            ai_result = analyze_image(processed_path)
+            ai_result = analyze_image(processed_path, location_context=loc_ctx)
 
         ai_error = ai_result.get("error")
 
@@ -156,6 +157,9 @@ def _analyze_single(photo: dict, geocode: bool, using_mock: bool) -> dict:
                 "objects": ai_result.get("objects", []),
                 "readable_text": ai_result.get("readable_text", []),
                 "people_description": ai_result.get("people_description"),
+                "time_of_day": ai_result.get("time_of_day"),
+                "season_hint": ai_result.get("season_hint"),
+                "location_clues": ai_result.get("location_clues"),
                 "landmark_hint": ai_result.get("landmark_hint"),
                 "atmosphere": ai_result.get("atmosphere"),
                 "photo_quality": ai_result.get("photo_quality"),

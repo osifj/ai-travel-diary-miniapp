@@ -123,11 +123,25 @@ async def create_diary(request: GenerateDiaryRequest):
             # MiMo 优先：基于自己的分析结果生成日记（信息不遗漏）
             if mimo_configured():
                 try:
+                    # 构建丰富的位置上下文
+                    cities = list(set(p.get("city") for p in photo_data if p.get("city")))
+                    places = [p.get("place_name") for p in photo_data if p.get("place_name")]
+                    streets = [p.get("address") for p in photo_data if p.get("address")]
+                    districts = [p.get("district") for p in photo_data if p.get("district")]
+                    
+                    location_summary_parts = []
+                    if cities: location_summary_parts.append(f"城市: {cities[0]}")
+                    if districts: location_summary_parts.append(f"区域: {', '.join(set(districts[:5]))}")
+                    if streets: location_summary_parts.append(f"街道/地址: {', '.join(set(streets[:5]))}")
+                    if places: location_summary_parts.append(f"具体地点: {', '.join(set(places[:5]))}")
+                    location_summary = "\n".join(location_summary_parts) if location_summary_parts else "无具体位置信息"
+                    
                     context_for_mimo = {
                         "date": template_diary.get("date"),
                         "city": template_diary.get("city"),
                         "weather": weather_data,
                         "photo_count": len(photo_data),
+                        "location_summary": location_summary,
                     }
                     mimo_diary = generate_diary_from_analysis(photo_data, context_for_mimo)
                     if mimo_diary.get("content") and not mimo_diary.get("error"):
