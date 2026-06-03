@@ -6,6 +6,7 @@
   - 获取已生成的日志
 """
 
+import json
 import logging
 import os
 from fastapi import APIRouter, HTTPException
@@ -287,7 +288,6 @@ async def refine_diary(diary_id: int, body: dict):
 
     # 保存精修结果
     from models.database import update_diary_refined
-    import json as _json
     try:
         update_diary_refined(
             diary_id=diary_id,

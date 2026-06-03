@@ -186,27 +186,25 @@
 
   /* 暗色模式 */
   @media (prefers-color-scheme: dark) {
-    body.dark-auto { --bg: #1a1a2e; --c: #16213e; --t: #e0e0e0; --s: #999; --l: #333; }
+    body.dark-auto { --bg: #1a1a2e; --card: #16213e; --t: #e0e0e0; --s: #999; --l: #333; }
     body.dark-auto .card { box-shadow: 0 1px 6px rgba(0,0,0,0.3); }
     body.dark-auto input, body.dark-auto textarea { background: #0f3460; color: #e0e0e0; border-color: #333; }
-    body.dark-auto .nav-btn { background: #2a2a4a; color: #999; }
-    body.dark-auto .nav-btn.active { background: var(--p); color: #fff; }
+    body.dark-auto .nav-tab { background: transparent; color: #999; }
+    body.dark-auto .nav-tab.on { background: var(--p); color: #fff; }
     body.dark-auto .tag { background: #1a3a5c; }
-    body.dark-auto .dc { color: #ccc; }
     body.dark-auto .warn-box { background: #2a2a1a; color: #ccc; }
-    body.dark-auto .photo-row { border-color: #1a1a3a; }
     body.dark-auto .btn-secondary { background: #16213e; color: #ccc; }
+    body.dark-auto .action-row button { background: #16213e; color: #ccc; border-color: #333; }
   }
-  body.dark-on { --bg: #1a1a2e; --c: #16213e; --t: #e0e0e0; --s: #999; --l: #333; }
+  body.dark-on { --bg: #1a1a2e; --card: #16213e; --t: #e0e0e0; --s: #999; --l: #333; }
   body.dark-on .card { box-shadow: 0 1px 6px rgba(0,0,0,0.3); }
   body.dark-on input, body.dark-on textarea { background: #0f3460; color: #e0e0e0; border-color: #333; }
-  body.dark-on .nav-btn { background: #2a2a4a; color: #999; }
-  body.dark-on .nav-btn.active { background: var(--p); color: #fff; }
+  body.dark-on .nav-tab { background: transparent; color: #999; }
+  body.dark-on .nav-tab.on { background: var(--p); color: #fff; }
   body.dark-on .tag { background: #1a3a5c; }
-  body.dark-on .dc { color: #ccc; }
   body.dark-on .warn-box { background: #2a2a1a; color: #ccc; }
-  body.dark-on .photo-row { border-color: #1a1a3a; }
   body.dark-on .btn-secondary { background: #16213e; color: #ccc; }
+  body.dark-on .action-row button { background: #16213e; color: #ccc; border-color: #333; }
   .dark-btn { font-size: 16px; padding: 4px 6px; border-radius: 6px; background: none; border: none; cursor: pointer; }
 
   .spinner {
@@ -217,7 +215,7 @@
   .del-btn { position: absolute; top: 8px; right: 8px; font-size: 16px; padding: 4px 6px; border-radius: 6px; background: rgba(0,0,0,0.08); border: none; cursor: pointer; opacity: 0.6; }
   .del-btn:active { opacity: 1; background: rgba(220,53,69,0.2); }
   .action-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
-  .action-row button { flex: 1; min-width: 60px; padding: 8px 6px; border-radius: 8px; border: 1px solid var(--l); background: var(--c); color: var(--t); font-size: 12px; cursor: pointer; }
+  .action-row button { flex: 1; min-width: 60px; padding: 8px 6px; border-radius: 8px; border: 1px solid var(--l); background: var(--card); color: var(--t); font-size: 12px; cursor: pointer; }
   .action-row button:active { background: var(--p); color: #fff; }
   .toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 10px 20px; border-radius: 20px; font-size: 14px; z-index: 999; animation: fadeIn 0.3s; }
   @keyframes fadeIn { from { opacity:0; transform:translateX(-50%) translateY(-10px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
@@ -516,9 +514,9 @@ async function deleteDiary(id) {
   try {
     const r = await fetch(`/diary/${id}`, { method: 'DELETE' });
     const d = await r.json();
-    if (d.success) { showToast('已删除'); loadHistory(); }
-    else showToast(d.detail || '删除失败');
-  } catch (err) { showToast(err.message); }
+    if (d.success) { toast('已删除', 'success'); loadHistory(); }
+    else toast(d.detail || '删除失败', 'error');
+  } catch (err) { toast(err.message, 'error'); }
 }
 
 async function showDiaryDetail(id) {
@@ -565,15 +563,6 @@ function _renderMap(mapId, photos) {
 function initMap() { _renderMap('map', state.diaryPhotos); }
 function initMapDetail() { _renderMap('mapDetail', state.diaryPhotos); }
 
-function showToast(msg, type) {
-  const t = document.createElement('div');
-  t.className = 'toast';
-  t.textContent = msg;
-  if (type === 'success') t.style.background = '#28a745';
-  document.body.appendChild(t);
-  setTimeout(() => t.remove(), 2000);
-}
-
 async function restyleDiary(style) {
   if (!state.diaryResult || !state.diaryResult.diary_id) return;
   const btns = document.querySelectorAll('.action-row button');
@@ -586,9 +575,9 @@ async function restyleDiary(style) {
       state.diaryResult.title = d.title;
       state.diaryResult.keywords = d.keywords;
       renderDiaryResult(); setTimeout(initMap, 200);
-      showToast('已切换为' + style + '风格', 'success');
-    } else showToast(d.detail || '切换失败');
-  } catch (err) { showToast(err.message); }
+      toast('已切换为' + style + '风格', 'success');
+    } else toast(d.detail || '切换失败', 'error');
+  } catch (err) { toast(err.message, 'error'); }
   btns.forEach(b => b.disabled = false);
 }
 
@@ -607,7 +596,7 @@ function exportMD() {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = (d.title || '游记') + '.md';
-  a.click(); showToast('已下载', 'success');
+  a.click(); toast('已下载', 'success');
 }
 </script>
 </body>
