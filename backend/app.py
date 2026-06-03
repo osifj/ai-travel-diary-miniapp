@@ -51,6 +51,13 @@ async def startup_event():
     logger.info("Database initialized.")
 
 
+# ---- 静态文件服务 (照片回看) ----
+from fastapi.staticfiles import StaticFiles
+
+UPLOADS_DIR = os.path.join(os.path.dirname(__file__), "data", "uploads")
+os.makedirs(UPLOADS_DIR, exist_ok=True)
+app.mount("/photos", StaticFiles(directory=UPLOADS_DIR), name="photos")
+
 # ---- 注册路由 ----
 from api.upload import router as upload_router
 from api.analyze import router as analyze_router

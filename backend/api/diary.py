@@ -7,6 +7,7 @@
 """
 
 import logging
+import os
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
@@ -199,6 +200,7 @@ async def read_diary(diary_id: int):
                 "address": p.get("address"),
                 "latitude": p.get("latitude"),
                 "longitude": p.get("longitude"),
+                "file_basename": os.path.basename(p.get("file_path", "")),
                 "has_gps": bool(p.get("has_gps")),
                 "time_source": p.get("time_source"),
                 "location_source": p.get("location_source"),
