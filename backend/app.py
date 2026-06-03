@@ -72,23 +72,21 @@ async def health_check():
     }
 
 
-# ---- 根路由 ----
-@app.get("/", tags=["system"])
+# ---- 根路由：网页端 ----
+from fastapi.responses import HTMLResponse
+
+WEB_HTML_PATH = os.path.join(os.path.dirname(__file__), "web", "index.html")
+
+@app.get("/", response_class=HTMLResponse, tags=["system"])
 async def root():
-    """根路由 — API 信息."""
-    return {
-        "service": "AI 游玩日志生成系统 API",
-        "docs": "/docs",
-        "health": "/health",
-        "endpoints": {
-            "upload": "POST /upload",
-            "upload_batch": "POST /upload/batch",
-            "analyze": "POST /analyze",
-            "generate_diary": "POST /diary/generate",
-            "get_diary": "GET /diary/{id}",
-            "list_diaries": "GET /diary/",
-        }
-    }
+    """网页端入口 — 返回完整的上传/分析/日记 HTML 页面."""
+    if os.path.exists(WEB_HTML_PATH):
+        with open(WEB_HTML_PATH, "r", encoding="utf-8") as f:
+            return f.read()
+    # fallback
+    return """<html><body><h2>AI 游玩日志生成系统</h2>
+    <p>网页端文件未找到。请确认 backend/web/index.html 存在。</p>
+    <p>API 文档: <a href="/docs">/docs</a></p></body></html>"""
 
 
 # ---- 直接运行 ----

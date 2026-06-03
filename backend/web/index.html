@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>AI 游玩日志生成器</title>
+<style>
+  :root {
+    --blue: #4A90D9;
+    --green: #5CB85C;
+    --red: #D9534F;
+    --bg: #f5f5f5;
+    --card: #fff;
+    --text: #333;
+    --sub: #999;
+    --radius: 12px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.6;
+    max-width: 640px; margin: 0 auto; padding: 16px;
+  }
+  h1 { font-size: 22px; text-align: center; margin: 16px 0 4px; }
+  .subtitle { text-align: center; color: var(--sub); font-size: 13px; margin-bottom: 20px; }
+  .card {
+    background: var(--card); border-radius: var(--radius); padding: 16px;
+    margin-bottom: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .card-title { font-size: 15px; font-weight: 600; margin-bottom: 10px; }
+
+  /* 上传区域 */
+  .drop-zone {
+    border: 2px dashed #ccc; border-radius: var(--radius); padding: 40px 16px;
+    text-align: center; cursor: pointer; transition: 0.2s;
+  }
+  .drop-zone:hover, .drop-zone.drag-over { border-color: var(--blue); background: #f0f7ff; }
+  .drop-zone-icon { font-size: 48px; display: block; margin-bottom: 8px; }
+  .drop-zone-text { font-size: 14px; color: var(--sub); }
+
+  /* 缩略图网格 */
+  .thumb-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .thumb-item {
+    width: calc(33.33% - 6px); position: relative; border-radius: 8px;
+    overflow: hidden; background: #eee; aspect-ratio: 1;
+  }
+  .thumb-item img { width: 100%; height: 100%; object-fit: cover; }
+  .thumb-remove {
+    position: absolute; top: 4px; right: 4px; width: 22px; height: 22px;
+    background: rgba(0,0,0,0.55); color: #fff; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; cursor: pointer; border: none;
+  }
+
+  /* 按钮 */
+  .btn {
+    display: block; width: 100%; padding: 12px; border-radius: 8px;
+    border: none; font-size: 15px; cursor: pointer; text-align: center;
+    margin-bottom: 8px; font-weight: 500;
+  }
+  .btn-primary { background: var(--blue); color: #fff; }
+  .btn-primary:active { background: #3A7BC8; }
+  .btn-secondary { background: #fff; color: var(--blue); border: 2px solid var(--blue); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* 进度条 */
+  .progress-bar { height: 6px; background: #e0e0e0; border-radius: 3px; overflow: hidden; margin: 8px 0; }
+  .progress-fill { height: 100%; background: var(--blue); border-radius: 3px; transition: width 0.3s; }
+
+  /* 标签 */
+  .tag {
+    display: inline-block; background: #e8f4fd; color: var(--blue);
+    padding: 3px 10px; border-radius: 14px; font-size: 12px; margin: 3px;
+  }
+  .tag.green { background: #d4edda; color: #28a745; }
+  .tag.orange { background: #fff3cd; color: #856404; }
+
+  /* 日记 */
+  .diary-content {
+    font-size: 15px; line-height: 1.8; white-space: pre-wrap;
+  }
+  .diary-content p { margin-bottom: 12px; text-indent: 2em; }
+
+  /* 照片结果 */
+  .photo-row {
+    display: flex; align-items: flex-start; padding: 10px 0;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .photo-row:last-child { border-bottom: none; }
+  .photo-num { min-width: 24px; color: var(--blue); font-weight: 600; font-size: 14px; }
+  .photo-info { flex: 1; font-size: 13px; }
+  .photo-info .meta { color: var(--sub); font-size: 12px; }
+
+  /* 输入框 */
+  .input-row { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+  .input-row input {
+    flex: 1; min-width: 120px; padding: 10px 12px; border: 1px solid #ddd;
+    border-radius: 8px; font-size: 14px;
+  }
+  .input-row input:focus { outline: none; border-color: var(--blue); }
+  label { font-size: 13px; color: #666; display: block; margin-bottom: 4px; }
+
+  .hidden { display: none !important; }
+  .error { color: var(--red); font-size: 13px; }
+  .success-text { color: var(--green); }
+  .warn-box { background: #fff3cd; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 12px; }
+
+  .section-divider { border-top: 1px solid #eee; margin: 12px 0; }
+
+  /* spinner */
+  .spinner {
+    width: 32px; height: 32px; border: 3px solid #e0e0e0;
+    border-top-color: var(--blue); border-radius: 50%;
+    animation: spin 0.7s linear infinite; margin: 12px auto;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<h1>📸 AI 游玩日志生成器</h1>
+<p class="subtitle">网页端 · 上传原图保留完整 EXIF/GPS</p>
+
+<!-- 步骤 1: 上传 -->
+<div id="step-upload" class="card">
+  <div class="card-title">1️⃣ 选择照片</div>
+  <div class="drop-zone" id="dropZone">
+    <span class="drop-zone-icon">📷</span>
+    <span class="drop-zone-text">点击选择或拖拽照片到此处<br><small>支持 HEIC / JPG / PNG，可选多张</small></span>
+  </div>
+  <input type="file" id="fileInput" accept="image/*" multiple hidden>
+
+  <!-- 已选预览 -->
+  <div class="thumb-grid" id="thumbGrid"></div>
+
+  <!-- 兜底信息 -->
+  <div class="section-divider"></div>
+  <div class="card-title">🧭 旅行信息兜底</div>
+  <div class="warn-box">
+    ⚠️ 如果照片不含 EXIF（如截图、第三方 App 导出），请手动填写日期和地点。
+  </div>
+  <div class="input-row">
+    <div><label>旅行日期</label><input type="date" id="travelDate"></div>
+    <div><label>时间（可选）</label><input type="time" id="travelTime"></div>
+  </div>
+  <div class="input-row">
+    <div><label>城市 / 地点</label><input type="text" id="travelPlace" placeholder="例如：香港尖沙咀"></div>
+    <div><label>地址（可选）</label><input type="text" id="travelAddr" placeholder="例如：广东道"></div>
+  </div>
+
+  <button class="btn btn-primary" id="btnUpload" disabled>上传照片</button>
+  <div class="progress-bar hidden" id="uploadProgressBar"><div class="progress-fill" id="uploadProgressFill"></div></div>
+  <p class="hidden" id="uploadStatus"></p>
+</div>
+
+<!-- 步骤 2: 分析 -->
+<div id="step-analyze" class="card hidden">
+  <div class="card-title">2️⃣ AI 分析</div>
+  <div id="uploadResults"></div>
+  <button class="btn btn-primary" id="btnAnalyze">开始 AI 分析照片</button>
+  <div id="analyzeProgress" class="hidden">
+    <div class="spinner"></div>
+    <p style="text-align:center;color:var(--sub)">正在调用 MiMo 多模态模型分析照片内容...</p>
+  </div>
+  <div id="analyzeResults"></div>
+</div>
+
+<!-- 步骤 3: 日记 -->
+<div id="step-diary" class="card hidden">
+  <div class="card-title">3️⃣ 生成游玩日志</div>
+  <button class="btn btn-primary" id="btnDiary">生成游玩日记</button>
+  <div id="diaryProgress" class="hidden">
+    <div class="spinner"></div>
+    <p style="text-align:center;color:var(--sub)">DeepSeek 正在撰写你的旅行日记...</p>
+  </div>
+</div>
+
+<!-- 步骤 4: 结果 -->
+<div id="step-result" class="card hidden"></div>
+
+<script>
+// ===== DOM 引用 =====
+const el = (id) => document.getElementById(id);
+
+// ===== 状态 =====
+const state = {
+  files: [],           // File 对象数组
+  photoIds: [],        // 上传成功后返回的 photo_id
+  uploadResults: [],   // /upload 返回的完整结果
+  analyzeResults: [],  // /analyze 返回的完整结果
+  diaryResult: null,
+};
+
+// ===== 文件选择 =====
+const dropZone = el('dropZone');
+const fileInput = el('fileInput');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+function handleFiles(fileList) {
+  const valid = Array.from(fileList).filter(f => f.type.startsWith('image/') || /\.(heic|heif)$/i.test(f.name));
+  if (valid.length === 0) { alert('请选择图片文件'); return; }
+  if (state.files.length + valid.length > 20) { alert('最多选择 20 张照片'); return; }
+  state.files = state.files.concat(valid);
+  renderThumbs();
+  updateUploadButton();
+}
+
+function renderThumbs() {
+  const grid = el('thumbGrid');
+  grid.innerHTML = state.files.map((f, i) => {
+    const url = URL.createObjectURL(f);
+    return `<div class="thumb-item">
+      <img src="${url}" alt="">
+      <button class="thumb-remove" data-idx="${i}">✕</button>
+    </div>`;
+  }).join('');
+  grid.querySelectorAll('.thumb-remove').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const idx = parseInt(btn.dataset.idx);
+      URL.revokeObjectURL(grid.querySelectorAll('img')[idx].src);
+      state.files.splice(idx, 1);
+      renderThumbs();
+      updateUploadButton();
+    });
+  });
+}
+
+function updateUploadButton() {
+  el('btnUpload').disabled = state.files.length === 0;
+  if (state.files.length > 0) {
+    el('btnUpload').textContent = `上传 ${state.files.length} 张照片`;
+  } else {
+    el('btnUpload').textContent = '上传照片';
+  }
+}
+
+// ===== 上传 =====
+el('btnUpload').addEventListener('click', uploadAll);
+
+async function uploadAll() {
+  el('btnUpload').disabled = true;
+  const bar = el('uploadProgressBar');
+  const fill = el('uploadProgressFill');
+  const status = el('uploadStatus');
+  bar.classList.remove('hidden');
+  status.classList.remove('hidden');
+
+  state.uploadResults = [];
+  state.photoIds = [];
+
+  const formExtra = {};
+  const date = el('travelDate').value;
+  const time = el('travelTime').value || '00:00';
+  const place = el('travelPlace').value.trim();
+  const addr = el('travelAddr').value.trim();
+  if (date) formExtra.client_taken_time = `${date} ${time}:00`;
+  if (place) {
+    formExtra.client_place_name = place;
+    if (addr) formExtra.client_address = addr;
+  }
+
+  for (let i = 0; i < state.files.length; i++) {
+    const f = state.files[i];
+    const fd = new FormData();
+    fd.append('file', f);
+    Object.entries(formExtra).forEach(([k, v]) => fd.append(k, v));
+
+    try {
+      const res = await fetch('/upload', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.success) {
+        state.uploadResults.push(data);
+        state.photoIds.push(data.photo_id);
+      } else {
+        state.uploadResults.push({ success: false, filename: f.name, error: data.detail || '上传失败' });
+      }
+    } catch (err) {
+      state.uploadResults.push({ success: false, filename: f.name, error: err.message });
+    }
+
+    fill.style.width = `${((i + 1) / state.files.length) * 100}%`;
+    status.textContent = `${i + 1} / ${state.files.length}`;
+  }
+
+  bar.classList.add('hidden');
+  status.textContent = `上传完成：${state.photoIds.length} 张成功`;
+
+  renderUploadResults();
+  if (state.photoIds.length > 0) {
+    el('step-analyze').classList.remove('hidden');
+    el('btnAnalyze').classList.remove('hidden');
+    el('step-analyze').scrollIntoView({ behavior: 'smooth' });
+  }
+}
+
+function renderUploadResults() {
+  const container = el('uploadResults');
+  container.innerHTML = state.uploadResults.map(r => {
+    const exif = r.exif || {};
+    const timeStr = exif.taken_time || '无时间';
+    const gpsStr = exif.has_gps ? `有GPS (${exif.latitude?.toFixed(4)}, ${exif.longitude?.toFixed(4)})` : '无GPS';
+    const fmt = exif.image_format || '?';
+    const src = exif.time_source || exif.location_source ? `来源: 时间=${exif.time_source||'?'} 地点=${exif.location_source||'?'}` : '';
+    const cls = r.success ? 'success-text' : 'error';
+    return `<div class="photo-row">
+      <span class="photo-num">${r.success ? '✅' : '❌'}</span>
+      <div class="photo-info">
+        <strong>${r.filename || '?'}</strong> <span class="tag">${fmt}</span><br>
+        <span class="meta">${timeStr} | ${gpsStr}</span><br>
+        ${src ? `<span class="meta">${src}</span>` : ''}
+        ${r.error ? `<br><span class="error">${r.error}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ===== AI 分析 =====
+el('btnAnalyze').addEventListener('click', analyzeAll);
+
+async function analyzeAll() {
+  el('btnAnalyze').disabled = true;
+  el('analyzeProgress').classList.remove('hidden');
+  el('analyzeResults').innerHTML = '';
+
+  try {
+    const res = await fetch('/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ photo_ids: state.photoIds, geocode: true }),
+    });
+    const data = await res.json();
+    state.analyzeResults = data.results || [];
+  } catch (err) {
+    el('analyzeResults').innerHTML = `<p class="error">分析失败: ${err.message}</p>`;
+  }
+
+  el('analyzeProgress').classList.add('hidden');
+  renderAnalyzeResults();
+
+  if (state.analyzeResults.length > 0) {
+    el('step-diary').classList.remove('hidden');
+    el('btnDiary').classList.remove('hidden');
+    el('step-diary').scrollIntoView({ behavior: 'smooth' });
+  }
+}
+
+function renderAnalyzeResults() {
+  const container = el('analyzeResults');
+  container.innerHTML = state.analyzeResults.map((r, i) => {
+    const ai = r.ai_analysis || {};
+    const loc = r.location || {};
+    const foods = (ai.food || []).join(', ');
+    const objs = (ai.objects || []).slice(0,5).join(', ');
+    return `<div class="photo-row">
+      <span class="photo-num">#${i+1}</span>
+      <div class="photo-info">
+        <strong>${ai.diary_sentence || '分析中...'}</strong><br>
+        <span class="meta">
+          📍 ${loc.city || loc.country || '未知'} ${loc.place_name||''} &nbsp;
+          🎯 ${ai.scene_type||'?'} &nbsp; 🏃 ${ai.activity||'?'} &nbsp;
+          😊 ${ai.mood||'?'} &nbsp; 📊 ${ai.confidence||'?'}
+        </span>
+        ${foods ? `<br><span class="meta">🍽️ ${foods}</span>` : ''}
+        ${objs ? `<br><span class="meta">📦 ${objs}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ===== 生成日记 =====
+el('btnDiary').addEventListener('click', generateDiary);
+
+async function generateDiary() {
+  el('btnDiary').disabled = true;
+  el('diaryProgress').classList.remove('hidden');
+
+  try {
+    const res = await fetch('/diary/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ photo_ids: state.photoIds }),
+    });
+    state.diaryResult = await res.json();
+  } catch (err) {
+    el('step-result').classList.remove('hidden');
+    el('step-result').innerHTML = `<p class="error">日记生成失败: ${err.message}</p>`;
+    return;
+  }
+
+  el('diaryProgress').classList.add('hidden');
+  renderDiaryResult();
+}
+
+function renderDiaryResult() {
+  const d = state.diaryResult;
+  if (!d || !d.success) {
+    el('step-result').classList.remove('hidden');
+    el('step-result').innerHTML = '<p class="error">日记生成失败</p>';
+    return;
+  }
+
+  const kws = (d.keywords || []).map(k => `<span class="tag">${k}</span>`).join('');
+  const paragraphs = (d.content || '').split('\n\n').filter(p => p.trim());
+  const contentHtml = paragraphs.map(p => `<p>${p}</p>`).join('');
+
+  el('step-result').classList.remove('hidden');
+  el('step-result').innerHTML = `
+    <div class="card-title">📖 ${d.title || '游玩日志'}</div>
+    <p style="font-size:13px;color:var(--sub);margin-bottom:8px">
+      📅 ${d.date || '?'} &nbsp; 📍 ${d.city || '未知'} &nbsp;
+      📷 ${d.photo_count || 0} 张 &nbsp; 🤖 ${d.generator || 'AI'}
+    </p>
+    ${kws ? `<div style="margin-bottom:12px">${kws}</div>` : ''}
+
+    ${d.weather_summary ? `
+      <div style="background:#f0f7ff;padding:10px 12px;border-radius:8px;margin-bottom:12px;font-size:13px">
+        🌤️ ${d.weather_summary}
+      </div>` : ''}
+
+    ${d.place_intro ? `
+      <div style="background:#fef9e7;padding:10px 12px;border-radius:8px;margin-bottom:12px;font-size:13px">
+        📍 ${d.place_intro}
+      </div>` : ''}
+
+    <div class="diary-content">${contentHtml}</div>
+
+    <div class="section-divider"></div>
+    <div class="card-title">🖼️ 照片详情</div>
+    ${(d.photo_summaries || []).map((p, i) => `
+      <div class="photo-row">
+        <span class="photo-num">#${i+1}</span>
+        <div class="photo-info">
+          <span class="meta">
+            ${p.taken_time || ''} ${p.city ? '📍'+p.city : ''}
+            &nbsp;<span class="tag">${p.scene_type || '?'}</span>
+            <span class="tag">${p.activity || '?'}</span>
+            <span class="tag">${p.mood || '?'}</span>
+          </span>
+          ${p.diary_sentence ? `<br><span>${p.diary_sentence}</span>` : ''}
+        </div>
+      </div>
+    `).join('')}
+  `;
+  el('step-result').scrollIntoView({ behavior: 'smooth' });
+}
+</script>
+</body>
+</html>
