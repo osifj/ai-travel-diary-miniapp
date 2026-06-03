@@ -274,7 +274,7 @@ el('btnAnalyze').addEventListener('click', async () => {
     el('btnDiary').classList.add('hidden');
     el('step-diary').scrollIntoView({ behavior:'smooth' });
     // 自动生成日记
-    setTimeout(() => el('btnDiary').click(), 500);
+    el('btnDiary').click();
   }
 });
 
