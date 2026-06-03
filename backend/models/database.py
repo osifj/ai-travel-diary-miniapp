@@ -144,6 +144,7 @@ def _ensure_diary_columns(cursor: sqlite3.Cursor):
         "generator": "TEXT DEFAULT 'template'",
         "user_notes": "TEXT",
         "refined_content": "TEXT",
+        "chat_history": "TEXT",
     }
     for name, definition in columns.items():
         if name not in existing:
@@ -427,6 +428,15 @@ def update_diary_refined(
            WHERE id = ?""",
         (user_notes, refined_content, diary_id)
     )
+    conn.commit()
+    conn.close()
+
+
+def save_chat_history(diary_id: int, chat_history: list[dict]):
+    """保存对话历史."""
+    conn = get_connection()
+    conn.execute("UPDATE diaries SET chat_history = ? WHERE id = ?",
+                 (json.dumps(chat_history, ensure_ascii=False), diary_id))
     conn.commit()
     conn.close()
 

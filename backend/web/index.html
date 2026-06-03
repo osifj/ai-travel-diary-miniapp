@@ -247,6 +247,8 @@
   .chat-msg.ai .chat-bubble { background: #F0F0F5; color: var(--t); border-bottom-left-radius: 4px; }
   body.dark-on .chat-msg.ai .chat-bubble, body.dark-auto .chat-msg.ai .chat-bubble { background: #2a2a4a; color: #eee; }
   .chat-typing { padding: 8px 14px; font-size: 13px; color: var(--s); }
+  .quick-btn { padding: 5px 10px; border-radius: 14px; border: 1px solid var(--l); background: var(--card); color: var(--t); font-size: 12px; cursor: pointer; white-space: nowrap; transition: background 0.1s; }
+  .quick-btn:active { background: var(--p); color: #fff; border-color: var(--p); }
 </style>
 </head>
 <body>
@@ -514,12 +516,18 @@ function renderDiaryResult(targetId, mapId) {
     <div class="diary-content">${ps.map(p=>`<p>${p}</p>`).join('')}</div>
     <div class="section-div"></div>
     <div class="card-title" style="font-size:14px">💬 与 AI 讨论修改</div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">
+      <button class="quick-btn" onclick="quickChat('纠正地点：')">📍 纠正地点</button>
+      <button class="quick-btn" onclick="quickChat('补充事件：')">📝 补充事件</button>
+      <button class="quick-btn" onclick="quickChat('纠正食物/物品：')">🍽️ 纠正描述</button>
+      <button class="quick-btn" onclick="quickChat('帮我丰富这段日记，加入更多科普和背景知识')">🤖 AI润色</button>
+    </div>
     <div id="chatMessages" class="chat-area"></div>
     <div style="display:flex;gap:6px;margin-top:8px">
-      <input type="text" id="chatInput" placeholder="和 AI 讨论修改日记..." style="flex:1;height:44px;padding:0 14px;border:1.5px solid var(--l);border-radius:22px;font-size:14px;outline:none" onkeydown="if(event.key==='Enter')sendChat()">
+      <input type="text" id="chatInput" placeholder="和 AI 讨论修改日记... Enter发送 Shift+Enter换行" style="flex:1;height:44px;padding:0 14px;border:1.5px solid var(--l);border-radius:22px;font-size:14px;outline:none" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}">
       <button class="btn btn-primary" onclick="sendChat()" style="width:auto;height:44px;padding:0 18px;flex-shrink:0">发送</button>
     </div>
-    <button class="btn btn-primary" id="btnIntegrate" onclick="integrateDiary()" style="margin-top:8px;display:none">✅ 整合进日记</button>
+    <button class="btn btn-primary" id="btnIntegrate" onclick="integrateDiary()" style="margin-top:8px">✅ 整合进日记</button>
     <div id="chatProgress" class="hidden" style="text-align:center;padding:4px"><div class="dot-pulse"><span></span><span></span><span></span></div></div>
     <div class="section-div"></div>
     <div class="card-title" style="font-size:14px">🖼️ 照片详情</div>
@@ -531,6 +539,14 @@ function renderDiaryResult(targetId, mapId) {
 }
 
 // ===== AI 对话 =====
+function quickChat(prefix) {
+  const input = document.getElementById('chatInput');
+  input.value = prefix;
+  input.focus();
+  // 光标移到末尾
+  input.setSelectionRange(prefix.length, prefix.length);
+}
+
 async function sendChat() {
   const input = document.getElementById('chatInput');
   const msg = input.value.trim();
@@ -595,9 +611,7 @@ async function sendChat() {
       }
     }
 
-    if (fullText.indexOf('✅ 我已准备好整合日记') !== -1) {
-      document.getElementById('btnIntegrate').style.display = '';
-    }
+
   } catch (err) {
     state.chatMessages[state.chatMessages.length - 1].content = '网络错误：' + err.message;
   }
@@ -686,7 +700,7 @@ async function showDiaryDetail(id) {
     if(!d.success){el('historyDetail').innerHTML='<p class="text-error">加载失败</p>';return;}
     const diary=d.diary, photos=d.photos||[];
     state.diaryResult=diary; state.diaryPhotos=photos;
-    state.chatMessages=[]; // 新打开时清空聊天
+    state.chatMessages = (d.chat_history && d.chat_history.length) ? d.chat_history : []; // 恢复对话
     el('historyDetail').innerHTML = '<button class="btn btn-secondary btn-small" onclick="backToHistory()">← 返回</button><div class="card" style="margin-top:10px" id="historyCard"></div>';
     renderDiaryResult('historyCard', 'mapDetail');
   } catch(err){ el('historyDetail').innerHTML=`<p class="text-error">${err.message}</p>`; }

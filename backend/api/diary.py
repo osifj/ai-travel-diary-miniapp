@@ -185,9 +185,17 @@ async def read_diary(diary_id: int):
     photo_ids = diary.get("photo_ids", [])
     photos = get_photos_by_ids(photo_ids) if photo_ids else []
 
+    # 解析 chat_history JSON
+    chat_history = []
+    raw_chat = diary.get("chat_history")
+    if raw_chat:
+        try: chat_history = json.loads(raw_chat)
+        except: pass
+
     return {
         "success": True,
         "diary": diary,
+        "chat_history": chat_history,
         "photos": [
             {
                 "photo_id": p["id"],
@@ -369,10 +377,21 @@ async def chat_about_diary(diary_id: int, body: dict):
 
     msgs = [{"role": "system", "content": system_prompt}] + messages[-20:]
 
+    full_reply = ""
+
     async def generate():
+        nonlocal full_reply
         try:
             for chunk in stream_chat(msgs, temperature=0.7):
+                full_reply += chunk
                 yield f"data: {_json.dumps({'c': chunk})}\n\n"
+            # 保存对话到数据库
+            messages.append({"role": "assistant", "content": full_reply})
+            try:
+                from models.database import save_chat_history
+                save_chat_history(diary_id, messages)
+            except Exception:
+                pass
             yield "data: [DONE]\n\n"
         except Exception as e:
             yield f"data: {_json.dumps({'e': str(e)})}\n\n"
