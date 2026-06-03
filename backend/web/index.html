@@ -270,8 +270,11 @@ el('btnAnalyze').addEventListener('click', async () => {
   }).join('');
   if (state.analyzeResults.length) {
     el('step-diary').classList.remove('hidden');
-    el('btnDiary').classList.remove('hidden');
+    el('diaryProgress').classList.remove('hidden');
+    el('btnDiary').classList.add('hidden');
     el('step-diary').scrollIntoView({ behavior:'smooth' });
+    // 自动生成日记
+    setTimeout(() => el('btnDiary').click(), 500);
   }
 });
 
