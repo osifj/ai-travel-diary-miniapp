@@ -2,206 +2,310 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>AI 游玩日志生成器</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
   :root {
-    --blue: #4A90D9; --green: #5CB85C; --red: #D9534F;
-    --bg: #f5f5f5; --card: #fff; --text: #333; --sub: #999; --radius: 12px;
+    --p: #5B6ABF; --p2: #7C8EE5; --g: #52B788; --w: #F0A04B; --r: #E0556A;
+    --bg: #F7F8FC; --card: #fff; --t: #1E1E2E; --s: #6C6C80; --l: #E0E0E8;
+    --radius: 14px; --shadow: 0 2px 12px rgba(0,0,0,0.06);
   }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-tap-highlight-color: transparent; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-    background: var(--bg); color: var(--text); line-height: 1.6;
-    max-width: 640px; margin: 0 auto; padding: 16px;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--t); line-height: 1.65; font-size: 15px;
+    max-width: 480px; margin: 0 auto; padding: 0 0 80px; min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
   }
-  h1 { font-size: 20px; text-align: center; margin: 8px 0 4px; }
-  .subtitle { text-align: center; color: var(--sub); font-size: 12px; margin-bottom: 12px; }
-  .card { background: var(--card); border-radius: var(--radius); padding: 16px; margin-bottom: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
-  .card-title { font-size: 15px; font-weight: 600; margin-bottom: 10px; }
 
-  /* 导航 */
-  .nav-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
-  .nav-bar input { flex: 1; min-width: 80px; padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; }
-  .nav-btn { padding: 8px 16px; border-radius: 8px; border: none; font-size: 13px; cursor: pointer; font-weight: 500; background: #e0e0e0; color: #666; }
-  .nav-btn.active { background: var(--blue); color: #fff; }
+  /* 导航栏 */
+  .nav {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--bg); padding: 10px 0 8px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .nav input {
+    flex: 1; min-width: 0; height: 40px; padding: 0 14px;
+    border: 1.5px solid var(--l); border-radius: 20px; font-size: 14px;
+    background: var(--card); color: var(--t); outline: none;
+  }
+  .nav input:focus { border-color: var(--p2); }
+  .nav-tabs { display: flex; gap: 4px; background: var(--card); border-radius: 20px; padding: 3px; }
+  .nav-tab {
+    height: 34px; padding: 0 14px; border-radius: 18px; border: none;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    background: transparent; color: var(--s); white-space: nowrap;
+  }
+  .nav-tab.on { background: var(--p); color: #fff; }
 
-  .drop-zone { border: 2px dashed #ccc; border-radius: var(--radius); padding: 32px 16px; text-align: center; cursor: pointer; }
-  .drop-zone:hover, .drop-zone.drag-over { border-color: var(--blue); background: #f0f7ff; }
-  .drop-zone-icon { font-size: 40px; display: block; margin-bottom: 6px; }
-  .drop-zone-text { font-size: 13px; color: var(--sub); }
+  /* 卡片 */
+  .card {
+    background: var(--card); border-radius: var(--radius); padding: 18px 16px;
+    margin-bottom: 12px; box-shadow: var(--shadow);
+  }
+  .card-title { font-size: 16px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+  .card-title .step-num {
+    display: inline-flex; width: 24px; height: 24px; border-radius: 50%;
+    background: var(--p); color: #fff; font-size: 12px; font-weight: 700;
+    align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .card-title .step-num.done { background: var(--g); }
 
-  .thumb-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-  .thumb-item { width: calc(33.33% - 4px); position: relative; border-radius: 8px; overflow: hidden; background: #eee; aspect-ratio: 1; }
-  .thumb-item img { width: 100%; height: 100%; object-fit: cover; }
-  .thumb-remove { position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; background: rgba(0,0,0,0.55); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; cursor: pointer; border: none; }
+  /* 上传区 */
+  .drop-zone {
+    border: 2px dashed var(--l); border-radius: var(--radius); padding: 36px 16px;
+    text-align: center; cursor: pointer; transition: 0.2s; background: #FAFBFF;
+    min-height: 120px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .drop-zone:active, .drop-zone.drag-over { border-color: var(--p2); background: #F0F3FF; }
+  .drop-zone-icon { font-size: 44px; margin-bottom: 6px; }
+  .drop-zone-text { font-size: 14px; color: var(--s); line-height: 1.5; }
 
-  .btn { display: block; width: 100%; padding: 12px; border-radius: 8px; border: none; font-size: 15px; cursor: pointer; text-align: center; margin-bottom: 8px; font-weight: 500; }
-  .btn-primary { background: var(--blue); color: #fff; }
-  .btn-primary:active { background: #3A7BC8; }
-  .btn-secondary { background: #fff; color: var(--blue); border: 2px solid var(--blue); }
-  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  /* 缩略图 */
+  .thumb-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .thumb-item {
+    width: calc(33.33% - 4px); position: relative; border-radius: 10px; overflow: hidden;
+    background: #eee; aspect-ratio: 1;
+  }
+  .thumb-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb-del {
+    position: absolute; top: 4px; right: 4px; width: 22px; height: 22px;
+    background: rgba(0,0,0,0.5); color: #fff; border-radius: 50%; border: none;
+    font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    line-height: 1;
+  }
+  .thumb-type {
+    position: absolute; bottom: 3px; left: 4px; font-size: 10px; color: #fff;
+    background: rgba(0,0,0,0.4); padding: 1px 5px; border-radius: 4px;
+  }
 
-  .tag { display: inline-block; background: #e8f4fd; color: var(--blue); padding: 2px 8px; border-radius: 14px; font-size: 11px; margin: 2px; }
-  .tag.green { background: #d4edda; color: #28a745; }
+  /* 按钮 */
+  .btn {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    width: 100%; height: 48px; padding: 0 20px; border-radius: 12px; border: none;
+    font-size: 15px; font-weight: 600; cursor: pointer; margin-bottom: 8px;
+    transition: transform 0.1s, opacity 0.2s; -webkit-tap-highlight-color: transparent;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+  .btn-primary { background: var(--p); color: #fff; }
+  .btn-secondary { background: var(--card); color: var(--p); border: 2px solid var(--p); }
+  .btn-small { width: auto; height: 36px; font-size: 13px; padding: 0 16px; border-radius: 10px; }
 
-  .progress-bar { height: 6px; background: #e0e0e0; border-radius: 3px; overflow: hidden; margin: 8px 0; }
-  .progress-fill { height: 100%; background: var(--blue); border-radius: 3px; transition: width 0.3s; }
+  /* 标签 */
+  .tag {
+    display: inline-block; background: #EEF0FA; color: var(--p);
+    padding: 3px 10px; border-radius: 12px; font-size: 12px; margin: 2px; font-weight: 500;
+  }
+  .tag.green { background: #E8F5E9; color: #388E3C; }
+  .tag.orange { background: #FFF3E0; color: #E65100; }
 
-  .diary-content { font-size: 15px; line-height: 1.8; white-space: pre-wrap; }
-  .diary-content p { margin-bottom: 12px; text-indent: 2em; }
+  /* 输入 */
+  .field-row { display: flex; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+  .field-row > div { flex: 1; min-width: 100px; }
+  .field-row label { font-size: 12px; color: var(--s); display: block; margin-bottom: 4px; font-weight: 500; }
+  .field-row input {
+    width: 100%; height: 42px; padding: 0 12px; border: 1.5px solid var(--l);
+    border-radius: 10px; font-size: 14px; background: var(--card); color: var(--t); outline: none;
+  }
+  .field-row input:focus { border-color: var(--p2); }
 
-  .photo-row { display: flex; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
-  .photo-row:last-child { border-bottom: none; }
-  .photo-num { min-width: 22px; color: var(--blue); font-weight: 600; font-size: 13px; }
-  .photo-info { flex: 1; font-size: 12px; }
-  .photo-info .meta { color: var(--sub); font-size: 11px; }
+  /* Toast */
+  .toast {
+    position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 999;
+    background: #1E1E2E; color: #fff; padding: 12px 24px; border-radius: 24px;
+    font-size: 14px; font-weight: 500; box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+    opacity: 0; pointer-events: none; transition: opacity 0.3s;
+  }
+  .toast.show { opacity: 1; }
+  .toast.success { background: var(--g); }
+  .toast.error { background: var(--r); }
 
-  .input-row { display: flex; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
-  .input-row input { flex: 1; min-width: 100px; padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; }
-  label { font-size: 12px; color: #666; display: block; margin-bottom: 3px; }
+  /* 进度 */
+  .progress-bar { height: 6px; background: var(--l); border-radius: 3px; overflow: hidden; margin: 8px 0; }
+  .progress-fill { height: 100%; background: var(--p); border-radius: 3px; transition: width 0.3s; }
 
+  /* 分析中 */
+  .analyzing-status { text-align: center; padding: 16px 0; }
+  .dot-pulse { display: flex; justify-content: center; gap: 6px; margin-bottom: 10px; }
+  .dot-pulse span { width: 10px; height: 10px; border-radius: 50%; background: var(--p); animation: pulse 1.4s infinite ease-in-out both; }
+  .dot-pulse span:nth-child(1) { animation-delay: -0.32s; }
+  .dot-pulse span:nth-child(2) { animation-delay: -0.16s; }
+  @keyframes pulse { 0%,80%,100% { transform:scale(0);opacity:0.4; } 40% { transform:scale(1);opacity:1; } }
+
+  /* 日记 */
+  .diary-content { font-size: 16px; line-height: 1.85; color: #2D2D3A; }
+  .diary-content p { margin-bottom: 14px; text-indent: 2em; }
+
+  .info-box {
+    padding: 12px 14px; border-radius: 10px; margin-bottom: 12px; font-size: 13px;
+    line-height: 1.5; display: flex; align-items: flex-start; gap: 8px;
+  }
+  .info-box.weather { background: #F0F4FF; color: #4A55A2; }
+  .info-box.place { background: #FEF9E7; color: #8B6914; }
+
+  /* 照片行 */
+  .photo-row { display: flex; align-items: flex-start; padding: 10px 0; gap: 10px; }
+  .photo-row + .photo-row { border-top: 1px solid #F3F3F6; }
+  .photo-num { color: var(--p); font-weight: 700; font-size: 14px; min-width: 28px; padding-top: 2px; }
+  .photo-info { flex: 1; font-size: 13px; }
+  .photo-info .meta { color: var(--s); font-size: 12px; }
+
+  /* 历史卡片 */
+  .diary-card {
+    background: var(--card); border-radius: var(--radius); overflow: hidden;
+    margin-bottom: 12px; box-shadow: var(--shadow); cursor: pointer;
+    transition: transform 0.15s;
+  }
+  .diary-card:active { transform: scale(0.98); }
+  .diary-card-thumb {
+    width: 100%; height: 140px; object-fit: cover; display: block; background: #E8E8EE;
+  }
+  .diary-card-body { padding: 14px; }
+  .diary-card-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden; }
+  .diary-card-meta { font-size: 12px; color: var(--s); margin-bottom: 8px; }
+  .diary-card-preview { font-size: 13px; color: #888; display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden; }
+
+  /* 地图 */
+  .map-container { height: 260px; border-radius: 10px; margin-bottom: 12px; overflow: hidden; }
+
+  /* 辅助 */
   .hidden { display: none !important; }
-  .error { color: var(--red); font-size: 13px; }
-  .success-text { color: var(--green); }
-  .warn-box { background: #fff3cd; padding: 8px 12px; border-radius: 8px; font-size: 12px; margin-bottom: 10px; }
+  .text-error { color: var(--r); font-size: 13px; }
+  .text-ok { color: var(--g); }
+  .section-div { border-top: 1px solid #F0F0F3; margin: 14px 0; }
+  .warn-box { background: #FFF9E6; padding: 10px 14px; border-radius: 10px; font-size: 13px; color: #8B6D14; margin-bottom: 10px; }
+  textarea {
+    width: 100%; padding: 12px; border: 1.5px solid var(--l); border-radius: 10px;
+    font-size: 14px; resize: vertical; font-family: inherit; outline: none; min-height: 80px;
+  }
+  textarea:focus { border-color: var(--p2); }
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--s); }
 
-  /* 历史记录卡片 */
-  .diary-card { display: flex; gap: 10px; padding: 12px; background: var(--card); border-radius: var(--radius); margin-bottom: 10px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-  .diary-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-  .diary-card-thumb { width: 72px; height: 72px; border-radius: 8px; object-fit: cover; background: #eee; flex-shrink: 0; }
-  .diary-card-info { flex: 1; min-width: 0; }
-  .diary-card-info .dc-title { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .diary-card-info .dc-meta { font-size: 11px; color: var(--sub); margin: 4px 0; }
-  .diary-card-info .dc-preview { font-size: 12px; color: #888; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-
-  .section-divider { border-top: 1px solid #eee; margin: 12px 0; }
-
-  #map { height: 280px; border-radius: 8px; margin: 12px 0; }
-  .leaflet-popup-content { font-size: 13px; }
-
-  .spinner { width: 28px; height: 28px; border: 3px solid #e0e0e0; border-top-color: var(--blue); border-radius: 50%; animation: spin 0.7s linear infinite; margin: 10px auto; }
+  .spinner {
+    width: 28px; height: 28px; border: 3px solid var(--l);
+    border-top-color: var(--p); border-radius: 50%; animation: spin 0.7s linear infinite; margin: 8px auto;
+  }
   @keyframes spin { to { transform: rotate(360deg); } }
-
-  textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; resize: vertical; }
 </style>
 </head>
 <body>
 
-<!-- 导航 -->
-<div class="nav-bar">
+<div id="toast" class="toast"></div>
+
+<div class="nav">
   <input type="text" id="nicknameInput" placeholder="你的昵称" maxlength="20">
-  <button class="nav-btn active" id="btnNew" onclick="switchView('new')">🆕 新分析</button>
-  <button class="nav-btn" id="btnHistory" onclick="switchView('history')">📚 历史记录</button>
+  <div class="nav-tabs">
+    <button class="nav-tab on" id="btnNew" onclick="switchView('new')">🆕</button>
+    <button class="nav-tab" id="btnHistory" onclick="switchView('history')">📚</button>
+  </div>
 </div>
 
-<h1>📸 AI 游玩日志生成器</h1>
-<p class="subtitle" id="subtitleLine">网页端 · 上传原图保留完整 EXIF/GPS</p>
-
-<!-- ====== 视图：新分析 ====== -->
+<!-- ====== 新分析 ====== -->
 <div id="view-new">
 
   <div class="card">
-    <div class="card-title">1️⃣ 选择照片</div>
+    <div class="card-title"><span class="step-num" id="step1Num">1</span>选择照片</div>
     <div class="drop-zone" id="dropZone">
       <span class="drop-zone-icon">📷</span>
-      <span class="drop-zone-text">点击选择或拖拽照片<br><small>HEIC / JPG / PNG，可选多张</small></span>
+      <span class="drop-zone-text">点击选择或拖拽照片<br><small>HEIC / JPG / PNG · 支持多张</small></span>
     </div>
     <input type="file" id="fileInput" accept="image/*" multiple hidden>
     <div class="thumb-grid" id="thumbGrid"></div>
-    <div class="section-divider"></div>
-    <div class="card-title">🧭 旅行信息兜底</div>
-    <div class="warn-box">⚠️ 如果照片不含 EXIF，请手动填写日期和地点。</div>
-    <div class="input-row">
-      <div><label>旅行日期</label><input type="date" id="travelDate"></div>
+
+    <div class="section-div"></div>
+    <div class="card-title" style="font-size:14px">🧭 旅行信息兜底</div>
+    <div class="warn-box">⚠️ iPhone 照片上传后 EXIF 会被微信剥离。请填写日期和地点。</div>
+    <div class="field-row">
+      <div><label>日期</label><input type="date" id="travelDate"></div>
       <div><label>时间</label><input type="time" id="travelTime"></div>
     </div>
-    <div class="input-row">
-      <div><label>城市/地点</label><input type="text" id="travelPlace" placeholder="香港尖沙咀"></div>
+    <div class="field-row">
+      <div><label>地点</label><input type="text" id="travelPlace" placeholder="香港尖沙咀"></div>
       <div><label>地址</label><input type="text" id="travelAddr" placeholder="广东道"></div>
     </div>
+
     <button class="btn btn-primary" id="btnUpload" disabled>上传照片</button>
-    <div class="progress-bar hidden" id="uploadProgressBar"><div class="progress-fill" id="uploadProgressFill"></div></div>
-    <p class="hidden" id="uploadStatus"></p>
+    <div class="progress-bar hidden" id="uploadProgressBar"><div class="progress-fill" id="uploadProgressFill" style="width:0%"></div></div>
+    <p class="hidden" id="uploadStatus" style="font-size:13px;color:var(--s);text-align:center"></p>
   </div>
 
   <div id="step-analyze" class="card hidden">
-    <div class="card-title">2️⃣ AI 分析</div>
+    <div class="card-title"><span class="step-num" id="step2Num">2</span>AI 分析</div>
     <div id="uploadResults"></div>
     <button class="btn btn-primary" id="btnAnalyze">开始 AI 分析</button>
-    <div id="analyzeProgress" class="hidden"><div class="spinner"></div><p style="text-align:center;color:var(--sub);font-size:13px">MiMo 多模态模型分析中...</p></div>
+    <div id="analyzeProgress" class="hidden"><div class="dot-pulse"><span></span><span></span><span></span></div><p style="text-align:center;color:var(--s);font-size:13px">MiMo 多模态模型分析中...</p></div>
     <div id="analyzeResults"></div>
   </div>
 
   <div id="step-diary" class="card hidden">
-    <div class="card-title">3️⃣ 生成游玩日志</div>
-    <button class="btn btn-primary" id="btnDiary">生成游玩日记</button>
-    <div id="diaryProgress" class="hidden"><div class="spinner"></div><p style="text-align:center;color:var(--sub);font-size:13px">DeepSeek 撰写中...</p></div>
+    <div class="card-title"><span class="step-num" id="step3Num">3</span>生成游记</div>
+    <button class="btn btn-primary hidden" id="btnDiary">生成游记</button>
+    <div id="diaryProgress" class="hidden"><div class="dot-pulse"><span></span><span></span><span></span></div><p style="text-align:center;color:var(--s);font-size:13px">DeepSeek 正在撰写...</p></div>
   </div>
 
   <div id="step-result" class="card hidden"></div>
 </div>
 
-<!-- ====== 视图：历史记录 ====== -->
+<!-- ====== 历史记录 ====== -->
 <div id="view-history" class="hidden">
   <div id="historyList"></div>
   <div id="historyDetail" class="hidden"></div>
 </div>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-// ===== 昵称管理 =====
+function toast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast ' + (type||'') + ' show';
+  clearTimeout(t._tid); t._tid = setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// ===== 昵称 =====
 let nickname = localStorage.getItem('travel_diary_nickname') || '';
 const nickInput = document.getElementById('nicknameInput');
 nickInput.value = nickname;
-nickInput.addEventListener('change', () => {
-  nickname = nickInput.value.trim();
-  localStorage.setItem('travel_diary_nickname', nickname);
-});
+nickInput.addEventListener('change', () => { nickname = nickInput.value.trim(); localStorage.setItem('travel_diary_nickname', nickname); });
 
 // ===== 视图切换 =====
-function switchView(view) {
-  document.getElementById('view-new').classList.toggle('hidden', view !== 'new');
-  document.getElementById('view-history').classList.toggle('hidden', view !== 'history');
-  document.getElementById('btnNew').classList.toggle('active', view === 'new');
-  document.getElementById('btnHistory').classList.toggle('active', view === 'history');
-  if (view === 'history') loadHistory();
+function switchView(v) {
+  document.getElementById('view-new').classList.toggle('hidden', v !== 'new');
+  document.getElementById('view-history').classList.toggle('hidden', v !== 'history');
+  document.getElementById('btnNew').classList.toggle('on', v === 'new');
+  document.getElementById('btnHistory').classList.toggle('on', v === 'history');
+  if (v === 'history') loadHistory();
 }
 
 // ===== 状态 =====
-const state = {
-  files: [], photoIds: [], uploadResults: [], analyzeResults: [], diaryResult: null, diaryPhotos: [],
-};
+const state = { files:[], photoIds:[], uploadResults:[], analyzeResults:[], diaryResult:null, diaryPhotos:[] };
+const el = id => document.getElementById(id);
 
-const el = (id) => document.getElementById(id);
-
-// ===== 文件选择 =====
-const dropZone = el('dropZone'), fileInput = el('fileInput');
-dropZone.addEventListener('click', () => fileInput.click());
-dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('drag-over'); handleFiles(e.dataTransfer.files); });
-fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+// ===== 文件 =====
+const dz = el('dropZone'), fi = el('fileInput');
+dz.addEventListener('click', () => fi.click());
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag-over'); handleFiles(e.dataTransfer.files); });
+fi.addEventListener('change', e => handleFiles(e.target.files));
 
 function handleFiles(fl) {
-  const valid = Array.from(fl).filter(f => f.type.startsWith('image/') || /\.(heic|heif)$/i.test(f.name));
-  if (!valid.length) { alert('请选择图片文件'); return; }
-  if (state.files.length + valid.length > 20) { alert('最多 20 张'); return; }
-  state.files = state.files.concat(valid);
-  renderThumbs();
-  el('btnUpload').disabled = false;
-  el('btnUpload').textContent = `上传 ${state.files.length} 张照片`;
+  const v = Array.from(fl).filter(f => f.type.startsWith('image/') || /\.(heic|heif)$/i.test(f.name));
+  if (!v.length) { toast('请选择图片文件', 'error'); return; }
+  if (state.files.length + v.length > 20) { toast('最多 20 张', 'error'); return; }
+  state.files = state.files.concat(v); renderThumbs();
+  el('btnUpload').disabled = false; el('btnUpload').textContent = `上传 ${state.files.length} 张照片`;
 }
 
 function renderThumbs() {
-  const grid = el('thumbGrid');
-  grid.innerHTML = state.files.map((f, i) =>
-    `<div class="thumb-item"><img src="${URL.createObjectURL(f)}"><button class="thumb-remove" data-idx="${i}">✕</button></div>`
+  const g = el('thumbGrid');
+  g.innerHTML = state.files.map((f,i) =>
+    `<div class="thumb-item"><img src="${URL.createObjectURL(f)}"><button class="thumb-del">✕</button><span class="thumb-type">${f.name.split('.').pop().toUpperCase()}</span></div>`
   ).join('');
-  grid.querySelectorAll('.thumb-remove').forEach(b => b.addEventListener('click', (e) => {
-    e.stopPropagation(); const idx = +b.dataset.idx;
-    URL.revokeObjectURL(grid.querySelectorAll('img')[idx].src);
-    state.files.splice(idx, 1); renderThumbs();
+  g.querySelectorAll('.thumb-del').forEach((b,i) => b.addEventListener('click', e => {
+    e.stopPropagation(); URL.revokeObjectURL(g.querySelectorAll('img')[i].src);
+    state.files.splice(i,1); renderThumbs();
     el('btnUpload').disabled = state.files.length === 0;
     el('btnUpload').textContent = state.files.length ? `上传 ${state.files.length} 张照片` : '上传照片';
   }));
@@ -213,243 +317,184 @@ el('btnUpload').addEventListener('click', async () => {
   const bar = el('uploadProgressBar'), fill = el('uploadProgressFill'), st = el('uploadStatus');
   bar.classList.remove('hidden'); st.classList.remove('hidden');
   state.uploadResults = []; state.photoIds = [];
-
   const extra = {};
-  const d = el('travelDate').value, t = el('travelTime').value || '00:00';
+  const d = el('travelDate').value, t = el('travelTime').value||'00:00';
   const p = el('travelPlace').value.trim(), a = el('travelAddr').value.trim();
   if (d) extra.client_taken_time = `${d} ${t}:00`;
   if (p) { extra.client_place_name = p; if (a) extra.client_address = a; }
 
-  for (let i = 0; i < state.files.length; i++) {
+  for (let i=0;i<state.files.length;i++) {
     const fd = new FormData(); fd.append('file', state.files[i]);
-    Object.entries(extra).forEach(([k, v]) => fd.append(k, v));
+    Object.entries(extra).forEach(([k,v]) => fd.append(k,v));
     try {
-      const r = await fetch('/upload', { method: 'POST', body: fd });
-      const data = await r.json();
-      if (data.success) { state.uploadResults.push(data); state.photoIds.push(data.photo_id); }
-      else state.uploadResults.push({ success: false, filename: state.files[i].name, error: data.detail });
-    } catch (err) { state.uploadResults.push({ success: false, filename: state.files[i].name, error: err.message }); }
+      const r = await fetch('/upload',{method:'POST',body:fd}); const d2 = await r.json();
+      if (d2.success) { state.uploadResults.push(d2); state.photoIds.push(d2.photo_id); }
+      else state.uploadResults.push({success:false,filename:state.files[i].name,error:d2.detail});
+    } catch(err) { state.uploadResults.push({success:false,filename:state.files[i].name,error:err.message}); }
     fill.style.width = `${((i+1)/state.files.length)*100}%`;
     st.textContent = `${i+1}/${state.files.length}`;
   }
   bar.classList.add('hidden');
-  st.textContent = `完成：${state.photoIds.length} 张`;
 
-  renderUploadResults();
   if (state.photoIds.length) {
-    el('step-analyze').classList.remove('hidden');
-    el('btnAnalyze').classList.remove('hidden');
-    el('step-analyze').scrollIntoView({ behavior:'smooth' });
+    toast(`上传成功 ${state.photoIds.length} 张`, 'success');
+    renderUploadResults();
+    el('step-analyze').classList.remove('hidden'); el('btnAnalyze').classList.remove('hidden');
+    el('step-analyze').scrollIntoView({behavior:'smooth'});
+  } else {
+    toast('上传失败', 'error');
+    el('btnUpload').disabled = false;
   }
 });
 
 function renderUploadResults() {
   el('uploadResults').innerHTML = state.uploadResults.map(r => {
-    const ex = r.exif || {};
-    const ts = ex.taken_time || '无时间';
-    const gs = ex.has_gps ? `有GPS (${ex.latitude?.toFixed(4)},${ex.longitude?.toFixed(4)})` : '无GPS';
-    const src = ex.time_source ? `来源: 时间=${ex.time_source} 地点=${ex.location_source}` : '';
-    return `<div class="photo-row"><span class="photo-num">${r.success?'✅':'❌'}</span><div class="photo-info"><strong>${r.filename}</strong><span class="tag">${ex.image_format||'?'}</span><br><span class="meta">${ts} | ${gs}</span>${src?`<br><span class="meta">${src}</span>`:''}${r.error?`<br><span class="error">${r.error}</span>`:''}</div></div>`;
+    const ex = r.exif||{};
+    const ts = ex.taken_time||'无时间'; const gs = ex.has_gps?`有 GPS`:'无 GPS';
+    const src = ex.time_source?`来源: ${ex.time_source}/${ex.location_source}`:'';
+    return `<div class="photo-row"><span class="photo-num">${r.success?'✅':'❌'}</span><div class="photo-info"><strong>${r.filename}</strong> <span class="tag">${ex.image_format||'?'}</span><br><span class="meta">${ts} | ${gs}</span>${src?`<br><span class="meta">${src}</span>`:''}${r.error?`<br><span class="text-error">${r.error}</span>`:''}</div></div>`;
   }).join('');
 }
 
 // ===== 分析 =====
 el('btnAnalyze').addEventListener('click', async () => {
   el('btnAnalyze').disabled = true;
-  el('analyzeProgress').classList.remove('hidden');
-  el('analyzeResults').innerHTML = '';
+  el('analyzeProgress').classList.remove('hidden'); el('analyzeResults').innerHTML = '';
   try {
-    const r = await fetch('/analyze', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({photo_ids:state.photoIds,geocode:true}) });
-    const d = await r.json();
-    state.analyzeResults = d.results || [];
-  } catch (err) { el('analyzeResults').innerHTML = `<p class="error">${err.message}</p>`; }
+    const r = await fetch('/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({photo_ids:state.photoIds,geocode:true})});
+    const d = await r.json(); state.analyzeResults = d.results||[];
+  } catch(err) { el('analyzeResults').innerHTML = `<p class="text-error">${err.message}</p>`; }
   el('analyzeProgress').classList.add('hidden');
+  document.getElementById('step2Num').classList.add('done');
   el('analyzeResults').innerHTML = state.analyzeResults.map((r,i) => {
-    const ai = r.ai_analysis||{}, loc = r.location||{};
-    return `<div class="photo-row"><span class="photo-num">#${i+1}</span><div class="photo-info"><strong>${ai.diary_sentence||''}</strong><br><span class="meta">📍${loc.city||''} ${loc.place_name||''} 🎯${ai.scene_type||'?'} 🏃${ai.activity||'?'} 💡${ai.fun_fact||''} 📊${ai.confidence||'?'}</span>${ai.food?.length?`<br><span class="meta">🍽️${ai.food.join(',')}</span>`:''}</div></div>`;
+    const ai=r.ai_analysis||{}, loc=r.location||{};
+    return `<div class="photo-row"><span class="photo-num">#${i+1}</span><div class="photo-info"><strong>${ai.diary_sentence||''}</strong><br><span class="meta">📍${loc.city||''} ${loc.place_name||''} · ${ai.scene_type||'?'} · ${ai.activity||'?'}</span>${ai.food?.length?`<br><span class="meta">🍽️ ${ai.food.join('、')}</span>`:''}${ai.fun_fact?`<br><span class="meta">💡 ${ai.fun_fact}</span>`:''}</div></div>`;
   }).join('');
   if (state.analyzeResults.length) {
-    el('step-diary').classList.remove('hidden');
-    el('diaryProgress').classList.remove('hidden');
-    el('btnDiary').classList.add('hidden');
-    el('step-diary').scrollIntoView({ behavior:'smooth' });
-    // 自动生成日记
+    el('step-diary').classList.remove('hidden'); el('diaryProgress').classList.remove('hidden');
+    el('btnDiary').classList.add('hidden'); el('step-diary').scrollIntoView({behavior:'smooth'});
     el('btnDiary').click();
-  }
+  } else { toast('分析失败', 'error'); }
 });
 
 // ===== 生成日记 =====
 el('btnDiary').addEventListener('click', async () => {
-  el('btnDiary').disabled = true;
-  el('diaryProgress').classList.remove('hidden');
+  el('btnDiary').disabled = true; el('diaryProgress').classList.remove('hidden');
   try {
-    const r = await fetch('/diary/generate', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({photo_ids:state.photoIds,user_id:nickname||'default'}) });
+    const r = await fetch('/diary/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({photo_ids:state.photoIds,user_id:nickname||'default'})});
     state.diaryResult = await r.json();
-  } catch (err) {
-    el('step-result').classList.remove('hidden');
-    el('step-result').innerHTML = `<p class="error">${err.message}</p>`;
-    return;
-  }
+  } catch(err) { el('step-result').classList.remove('hidden'); el('step-result').innerHTML=`<p class="text-error">${err.message}</p>`; return; }
   if (state.diaryResult?.diary_id) {
-    try {
-      const dr = await fetch(`/diary/${state.diaryResult.diary_id}`);
-      const dd = await dr.json();
-      if (dd.success) state.diaryPhotos = dd.photos || [];
-    } catch (e) { state.diaryPhotos = []; }
+    try { const dr=await fetch(`/diary/${state.diaryResult.diary_id}`); const dd=await dr.json(); if(dd.success) state.diaryPhotos=dd.photos||[]; } catch(e){}
   }
-  el('diaryProgress').classList.add('hidden');
-  renderDiaryResult();
-  setTimeout(initMap, 300);
+  el('diaryProgress').classList.add('hidden'); document.getElementById('step3Num').classList.add('done');
+  renderDiaryResult(); setTimeout(initMap, 200);
 });
 
 function renderDiaryResult() {
   const d = state.diaryResult;
-  if (!d?.success) { el('step-result').classList.remove('hidden'); el('step-result').innerHTML='<p class="error">日记生成失败</p>'; return; }
-  const kws = (d.keywords||[]).map(k=>`<span class="tag">${k}</span>`).join('');
+  if (!d?.success) { el('step-result').classList.remove('hidden'); el('step-result').innerHTML='<p class="text-error">生成失败</p>'; return; }
   const ps = (d.content||'').split('\n\n').filter(p=>p.trim());
   el('step-result').classList.remove('hidden');
   el('step-result').innerHTML = `
     <div class="card-title">📖 ${d.title||''}</div>
-    <p style="font-size:12px;color:var(--sub);margin-bottom:8px">📅${d.date||'?'} 📍${d.city||'未知'} 📷${d.photo_count||0}张 🤖${d.generator||'AI'}</p>
-    ${kws?`<div style="margin-bottom:8px">${kws}</div>`:''}
-    ${d.weather_summary?`<div style="background:#f0f7ff;padding:8px 10px;border-radius:8px;margin-bottom:12px;font-size:12px">🌤️ ${d.weather_summary}</div>`:''}
-    ${d.place_intro?`<div style="background:#fef9e7;padding:8px 10px;border-radius:8px;margin-bottom:12px;font-size:12px">📍 ${d.place_intro}</div>`:''}
-    <div id="map" style="height:280px;border-radius:8px;margin-bottom:12px"></div>
+    <p style="font-size:13px;color:var(--s);margin-bottom:10px">📅${d.date||'?'} · 📍${d.city||'未知'} · 📷${d.photo_count||0}张</p>
+    <div style="margin-bottom:10px">${(d.keywords||[]).map(k=>`<span class="tag">${k}</span>`).join('')}</div>
+    ${d.weather_summary?`<div class="info-box weather">🌤️ ${d.weather_summary}</div>`:''}
+    ${d.place_intro?`<div class="info-box place">📍 ${d.place_intro}</div>`:''}
+    <div id="map" class="map-container"></div>
     <div class="diary-content">${ps.map(p=>`<p>${p}</p>`).join('')}</div>
-    <div class="section-divider"></div>
-    <div class="card-title">✏️ 补充你的回忆</div>
-    <textarea id="userNotes" rows="4" placeholder="例如：中午在尖沙咀的华嫂冰室吃了菠萝油..."></textarea>
-    <button class="btn btn-primary" onclick="refineDiary()" style="margin-top:8px">🔄 重新整合日记</button>
-    <div id="refineProgress" class="hidden"><div class="spinner"></div><p style="text-align:center;color:var(--sub);font-size:12px">整合中...</p></div>
+    <div class="section-div"></div>
+    <div class="card-title" style="font-size:14px">✏️ 补充回忆</div>
+    <textarea id="userNotes" rows="3" placeholder="例如：中午在尖沙咀华嫂冰室吃了菠萝油..."></textarea>
+    <button class="btn btn-primary" onclick="refineDiary()" style="margin-top:8px">🔄 重新整合</button>
+    <div id="refineProgress" class="hidden"><div class="spinner"></div></div>
     <div id="refineResult" class="hidden" style="margin-top:8px"></div>
-    <div class="section-divider"></div>
-    <div class="card-title">🖼️ 照片详情</div>
-    ${(d.photo_summaries||[]).map((p,i)=>`
-      <div class="photo-row"><span class="photo-num">#${i+1}</span><div class="photo-info"><span class="meta">${p.taken_time||''} ${p.city?'📍'+p.city:''} <span class="tag">${p.scene_type||'?'}</span><span class="tag">${p.activity||'?'}</span></span>${p.diary_sentence?`<br><span>${p.diary_sentence}</span>`:''}</div></div>
-    `).join('')}
+    <div class="section-div"></div>
+    <div class="card-title" style="font-size:14px">🖼️ 照片详情</div>
+    ${(d.photo_summaries||[]).map((p,i)=>`<div class="photo-row"><span class="photo-num">#${i+1}</span><div class="photo-info"><span class="meta">${p.taken_time||''} ${p.city?'📍'+p.city:''}</span> <span class="tag">${p.scene_type||'?'}</span> <span class="tag">${p.activity||'?'}</span>${p.diary_sentence?`<br>${p.diary_sentence}`:''}</div></div>`).join('')}
   `;
-  el('step-result').scrollIntoView({ behavior:'smooth' });
+  el('step-result').scrollIntoView({behavior:'smooth'});
 }
 
 async function refineDiary() {
-  const notes = el('userNotes').value.trim();
-  if (!notes) { alert('请先输入补充内容'); return; }
+  const notes = el('userNotes').value.trim(); if(!notes){toast('请先输入内容','error');return;}
   el('refineProgress').classList.remove('hidden');
   try {
-    const r = await fetch(`/diary/${state.diaryResult.diary_id}/refine`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_notes:notes}) });
-    const d = await r.json();
-    if (d.success) {
-      state.diaryResult.content = d.content; state.diaryResult.title = d.title;
-      state.diaryResult.keywords = d.keywords; state.diaryResult.place_intro = d.place_intro;
-      state.diaryResult.generator = d.generator;
-      renderDiaryResult(); setTimeout(initMap, 300);
-      el('refineResult').classList.remove('hidden');
-      el('refineResult').innerHTML = '<p class="success-text">✅ 日记已更新</p>';
-      el('userNotes').value = '';
-    }
-  } catch (err) { el('refineResult').classList.remove('hidden'); el('refineResult').innerHTML=`<p class="error">${err.message}</p>`; }
+    const r=await fetch(`/diary/${state.diaryResult.diary_id}/refine`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_notes:notes})});
+    const d=await r.json();
+    if(d.success){ state.diaryResult.content=d.content;state.diaryResult.title=d.title;state.diaryResult.keywords=d.keywords;state.diaryResult.place_intro=d.place_intro;renderDiaryResult();setTimeout(initMap,200);toast('日记已更新','success');el('userNotes').value=''; }
+    else toast(d.detail||'失败','error');
+  } catch(err){toast(err.message,'error');}
   el('refineProgress').classList.add('hidden');
 }
 
 // ===== 历史记录 =====
 async function loadHistory() {
-  const uid = nickname || 'default';
-  el('historyDetail').classList.add('hidden');
-  el('historyDetail').innerHTML = '';
-  el('historyList').innerHTML = '<div class="spinner"></div>';
+  const uid = nickname||'default';
+  el('historyDetail').classList.add('hidden'); el('historyDetail').innerHTML='';
+  el('historyList').innerHTML = '<div style="text-align:center;padding:40px"><div class="spinner"></div></div>';
   try {
-    const r = await fetch(`/diary/?user_id=${encodeURIComponent(uid)}&limit=50`);
-    const d = await r.json();
-    if (!d.success || !d.diaries.length) {
-      el('historyList').innerHTML = '<p style="text-align:center;color:var(--sub);padding:40px">还没有日记记录</p>';
-      return;
-    }
+    const r=await fetch(`/diary/?user_id=${encodeURIComponent(uid)}&limit=50`);
+    const d=await r.json();
+    if(!d.success||!d.diaries.length){ el('historyList').innerHTML='<div class="empty-state">📭<br>还没有日记记录</div>'; return; }
     el('historyList').innerHTML = d.diaries.map(di => {
-      const pid = (di.photo_ids && di.photo_ids.length) ? di.photo_ids[0] : null;
+      const pid = (di.photo_ids||[])[0];
       return `<div class="diary-card" onclick="showDiaryDetail(${di.id})">
-        <div class="diary-card-info">
-          <div class="dc-title">${di.title}</div>
-          <div class="dc-meta">📅${di.date} 📍${di.city||'未知'} 🖼️${(di.photo_ids||[]).length}张 🤖${di.generator||'AI'}</div>
-          <div class="dc-preview">${(di.content||'').slice(0,100)}...</div>
-          <div style="margin-top:4px">${(di.keywords||[]).slice(0,4).map(k=>`<span class="tag">${k}</span>`).join('')}</div>
+        <div class="diary-card-body">
+          <div class="diary-card-title">${di.title}</div>
+          <div class="diary-card-meta">📅${di.date} · 📍${di.city||'未知'} · 📷${(di.photo_ids||[]).length}张</div>
+          <div class="diary-card-preview">${(di.content||'').slice(0,120)}...</div>
+          <div style="margin-top:6px">${(di.keywords||[]).slice(0,4).map(k=>`<span class="tag">${k}</span>`).join('')}</div>
         </div>
       </div>`;
     }).join('');
-  } catch (err) {
-    el('historyList').innerHTML = `<p class="error">加载失败: ${err.message}</p>`;
-  }
+  } catch(err){ el('historyList').innerHTML=`<p class="text-error">${err.message}</p>`; }
 }
 
 async function showDiaryDetail(id) {
-  el('historyList').classList.add('hidden');
-  el('historyDetail').classList.remove('hidden');
-  el('historyDetail').innerHTML = '<div class="spinner"></div>';
+  el('historyList').classList.add('hidden'); el('historyDetail').classList.remove('hidden');
+  el('historyDetail').innerHTML='<div style="text-align:center;padding:40px"><div class="spinner"></div></div>';
   try {
-    const r = await fetch(`/diary/${id}`);
-    const d = await r.json();
-    if (!d.success) { el('historyDetail').innerHTML = '<p class="error">加载失败</p>'; return; }
-    const diary = d.diary;
-    const photos = d.photos || [];
-    state.diaryResult = diary;
-    state.diaryPhotos = photos;
-
-    const kws = (diary.keywords||[]).map(k=>`<span class="tag">${k}</span>`).join('');
-    const ps = (diary.content||'').split('\n\n').filter(p=>p.trim());
-    const thumbHtml = photos.slice(0,6).map(p => {
-      const src = p.file_basename ? `/photos/${p.file_basename}` : '';
-      return src ? `<img src="${src}" style="width:calc(33%-4px);aspect-ratio:1;object-fit:cover;border-radius:6px;margin:2px" onerror="this.style.display='none'">` : '';
-    }).join('');
-
+    const r=await fetch(`/diary/${id}`); const d=await r.json();
+    if(!d.success){el('historyDetail').innerHTML='<p class="text-error">加载失败</p>';return;}
+    const diary=d.diary, photos=d.photos||[];
+    state.diaryResult=diary; state.diaryPhotos=photos;
+    const ps2=(diary.content||'').split('\n\n').filter(p=>p.trim());
     el('historyDetail').innerHTML = `
-      <button class="btn btn-secondary" onclick="backToHistory()" style="width:auto;padding:8px 16px;font-size:13px">← 返回列表</button>
+      <button class="btn btn-secondary btn-small" onclick="backToHistory()">← 返回</button>
       <div class="card" style="margin-top:10px">
         <div class="card-title">📖 ${diary.title}</div>
-        <p style="font-size:12px;color:var(--sub);margin-bottom:8px">📅${diary.date} 📍${diary.city||'未知'} 📷${photos.length}张 🤖${diary.generator||'AI'}</p>
-        ${kws?`<div style="margin-bottom:8px">${kws}</div>`:''}
-        ${thumbHtml?`<div style="display:flex;flex-wrap:wrap;margin-bottom:10px">${thumbHtml}</div>`:''}
-        ${diary.weather_summary?`<div style="background:#f0f7ff;padding:8px 10px;border-radius:8px;margin-bottom:10px;font-size:12px">🌤️ ${diary.weather_summary}</div>`:''}
-        ${diary.place_intro?`<div style="background:#fef9e7;padding:8px 10px;border-radius:8px;margin-bottom:10px;font-size:12px">📍 ${diary.place_intro}</div>`:''}
-        <div id="mapDetail" style="height:280px;border-radius:8px;margin-bottom:10px"></div>
-        <div class="diary-content">${ps.map(p=>`<p>${p}</p>`).join('')}</div>
-        <div class="section-divider"></div>
-        <div class="card-title">🖼️ 照片详情</div>
-        ${photos.map((p,i)=>`
-          <div class="photo-row"><span class="photo-num">#${i+1}</span><div class="photo-info"><span class="meta">${p.taken_time||''} ${p.city?'📍'+p.city:''} <span class="tag">${p.scene_type||'?'}</span><span class="tag">${p.activity||'?'}</span></span>${p.diary_sentence?`<br><span>${p.diary_sentence}</span>`:''}</div></div>
-        `).join('')}
-      </div>
-    `;
-    setTimeout(initMapDetail, 400);
-  } catch (err) { el('historyDetail').innerHTML = `<p class="error">${err.message}</p>`; }
+        <p style="font-size:13px;color:var(--s);margin-bottom:8px">📅${diary.date} · 📍${diary.city||'未知'} · 📷${photos.length}张</p>
+        <div style="margin-bottom:8px">${(diary.keywords||[]).map(k=>`<span class="tag">${k}</span>`).join('')}</div>
+        ${diary.weather_summary?`<div class="info-box weather">🌤️ ${diary.weather_summary}</div>`:''}
+        ${diary.place_intro?`<div class="info-box place">📍 ${diary.place_intro}</div>`:''}
+        <div id="mapDetail" class="map-container"></div>
+        <div class="diary-content">${ps2.map(p=>`<p>${p}</p>`).join('')}</div>
+        <div class="section-div"></div>
+        <div class="card-title" style="font-size:14px">🖼️ 照片详情</div>
+        ${photos.map((p,i)=>`<div class="photo-row"><span class="photo-num">#${i+1}</span><div class="photo-info"><span class="meta">${p.taken_time||''} ${p.city?'📍'+p.city:''}</span> <span class="tag">${p.scene_type||'?'}</span>${p.diary_sentence?`<br>${p.diary_sentence}`:''}</div></div>`).join('')}
+      </div>`;
+    setTimeout(initMapDetail, 300);
+  } catch(err){ el('historyDetail').innerHTML=`<p class="text-error">${err.message}</p>`; }
 }
 
-function backToHistory() {
-  el('historyDetail').classList.add('hidden');
-  el('historyList').classList.remove('hidden');
-}
+function backToHistory() { el('historyList').classList.remove('hidden'); el('historyDetail').classList.add('hidden'); }
 
-function initMapDetail() {
-  initMapOn('mapDetail');
-}
-
-</script>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-function initMap(containerId) { initMapOn('map'); }
-function initMapOn(id) {
-  const mapEl = document.getElementById(id);
-  if (!mapEl) return;
-  const photos = state.diaryPhotos || [];
-  const markers = photos.filter(p => p.has_gps && p.latitude && p.longitude);
-  if (!markers.length) { mapEl.style.display = 'none'; return; }
-  if (mapEl._leafletMap) { mapEl._leafletMap.remove(); }
-  const map = L.map(id).setView([markers[0].latitude, markers[0].longitude], 13);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'&copy; OSM', maxZoom:19 }).addTo(map);
-  markers.forEach(p => {
-    L.marker([p.latitude, p.longitude]).addTo(map).bindPopup(`<strong>${p.city||''} ${p.place_name||''}</strong><br>${p.diary_sentence||''}<br><small>📅${p.taken_time||''}</small>`);
-  });
+// ===== 地图 =====
+function _renderMap(mapId, photos) {
+  const el2 = document.getElementById(mapId); if (!el2) return;
+  const markers = (photos||[]).filter(p => p.has_gps && p.latitude && p.longitude);
+  if (!markers.length) { el2.style.display='none'; return; }
+  if (el2._leafletMap) { el2._leafletMap.remove(); }
+  const map = L.map(mapId, { attributionControl: false }).setView([markers[0].latitude, markers[0].longitude], 13);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19 }).addTo(map);
+  markers.forEach(p => { L.marker([p.latitude, p.longitude]).addTo(map).bindPopup(`<strong>${p.city||''} ${p.place_name||''}</strong><br>${p.diary_sentence||''}<br><small>${p.taken_time||''}</small>`); });
   if (markers.length > 1) map.fitBounds(markers.map(p=>[p.latitude, p.longitude]), {padding:[30,30]});
-  mapEl._leafletMap = map;
+  el2._leafletMap = map;
 }
+function initMap() { _renderMap('map', state.diaryPhotos); }
+function initMapDetail() { _renderMap('mapDetail', state.diaryPhotos); }
 </script>
 </body>
 </html>
