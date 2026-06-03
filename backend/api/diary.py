@@ -344,11 +344,10 @@ async def restyle_diary(diary_id: int, body: dict):
 @router.post("/{diary_id}/chat")
 async def chat_about_diary(diary_id: int, body: dict):
     """
-    多轮对话 — 与 AI 讨论日记修改。
-
-    请求体: {"messages": [{"role":"user","content":"..."}, ...], "diary_context": {...}}
-    返回: {"reply": "AI 回复文本"}
+    多轮对话 — 流式 SSE 返回 AI 回复。
     """
+    from fastapi.responses import StreamingResponse
+
     messages = (body or {}).get("messages", [])
     diary_context = (body or {}).get("diary_context", {})
 
@@ -359,13 +358,26 @@ async def chat_about_diary(diary_id: int, body: dict):
         raise HTTPException(status_code=503, detail="DeepSeek 未配置")
 
     from services.deepseek_client import chat_about_diary as do_chat
+    from services.deepseek_client import _chat_text_stream as stream_chat
 
-    try:
-        reply = do_chat(messages, diary_context)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"对话失败: {e}")
+    # 构建完整的 system prompt + messages
+    import json as _json
+    ctx = _json.dumps(diary_context, ensure_ascii=False, indent=2)
+    system_prompt = f"""你要帮助用户完善这篇旅行日记。你可以确认修改、追问细节、给建议、补科普。用户说的为准。当用户满意时说「✅ 我已准备好整合日记」。
 
-    return {"success": True, "reply": reply}
+日记上下文: {ctx}"""
+
+    msgs = [{"role": "system", "content": system_prompt}] + messages[-20:]
+
+    async def generate():
+        try:
+            for chunk in stream_chat(msgs, temperature=0.7):
+                yield f"data: {_json.dumps({'c': chunk})}\n\n"
+            yield "data: [DONE]\n\n"
+        except Exception as e:
+            yield f"data: {_json.dumps({'e': str(e)})}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 
 @router.post("/{diary_id}/integrate")

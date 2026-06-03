@@ -515,32 +515,67 @@ async function sendChat() {
 
   state.chatMessages.push({ role: 'user', content: msg });
   input.value = '';
+  state.chatMessages.push({ role: 'assistant', content: '' }); // 占位
   renderChat();
   document.getElementById('chatProgress').classList.remove('hidden');
 
+  // 完整日记上下文（每张照片的结构化数据）
+  const photosCtx = (state.diaryPhotos || []).map(p => ({
+    time: p.taken_time,
+    city: p.city, place: p.place_name, address: p.address,
+    scene: p.scene_type, activity: p.activity,
+    food: p.ai_food || p.food, objects: p.ai_objects || p.objects,
+    fun_fact: p.ai_fun_fact || p.fun_fact,
+    has_gps: p.has_gps, lat: p.latitude, lng: p.longitude,
+    diary_sentence: p.diary_sentence,
+  }));
+  const diaryCtx = {
+    title: state.diaryResult.title,
+    date: state.diaryResult.date,
+    city: state.diaryResult.city,
+    place_intro: state.diaryResult.place_intro,
+    weather: state.diaryResult.weather_summary,
+    photos: photosCtx,
+  };
+
   try {
-    const diaryCtx = {
-      title: state.diaryResult.title,
-      date: state.diaryResult.date,
-      city: state.diaryResult.city,
-      content_preview: (state.diaryResult.content || '').slice(0, 300),
-      keywords: state.diaryResult.keywords,
-    };
     const r = await fetch(`/diary/${state.diaryResult.diary_id}/chat`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: state.chatMessages, diary_context: diaryCtx }),
+      body: JSON.stringify({ messages: state.chatMessages.filter(m => m.role !== 'assistant' || m.content), diary_context: diaryCtx }),
     });
-    const d = await r.json();
-    if (d.success) {
-      state.chatMessages.push({ role: 'assistant', content: d.reply });
-      if (d.reply.indexOf('✅ 我已准备好整合日记') !== -1) {
-        document.getElementById('btnIntegrate').style.display = '';
+    const reader = r.body.getReader();
+    const decoder = new TextDecoder();
+    let fullText = '';
+    let buf = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop() || '';
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6);
+          if (data === '[DONE]') continue;
+          try {
+            const json = JSON.parse(data);
+            if (json.c) {
+              fullText += json.c;
+              state.chatMessages[state.chatMessages.length - 1].content = fullText;
+              renderChat();
+            }
+            if (json.e) { fullText += '\n[错误: ' + json.e + ']'; }
+          } catch (e) {}
+        }
       }
-    } else {
-      state.chatMessages.push({ role: 'assistant', content: '出错：' + (d.detail || '') });
+    }
+
+    if (fullText.indexOf('✅ 我已准备好整合日记') !== -1) {
+      document.getElementById('btnIntegrate').style.display = '';
     }
   } catch (err) {
-    state.chatMessages.push({ role: 'assistant', content: '网络错误：' + err.message });
+    state.chatMessages[state.chatMessages.length - 1].content = '网络错误：' + err.message;
   }
   document.getElementById('chatProgress').classList.add('hidden');
   renderChat();

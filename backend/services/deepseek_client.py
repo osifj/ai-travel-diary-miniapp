@@ -225,23 +225,40 @@ def chat_about_diary(messages: list[dict], diary_context: dict) -> str:
 
 def _chat_text(messages: list[dict], temperature: float = 0.7) -> str:
     """调用 DeepSeek 纯文本对话，返回文本。"""
+    full = ""
+    for chunk in _chat_text_stream(messages, temperature):
+        full += chunk
+    return full
+
+
+def _chat_text_stream(messages: list[dict], temperature: float = 0.7):
+    """流式调用 DeepSeek 纯文本对话，逐块 yield 文本。"""
     if not is_configured(): raise ValueError("DEEPSEEK_API_KEY 未配置")
     url = f"{DEEPSEEK_BASE_URL.rstrip('/')}/chat/completions"
     payload = {
         "model": DEEPSEEK_MODEL, "messages": messages,
         "temperature": temperature,
         "max_completion_tokens": DEEPSEEK_MAX_COMPLETION_TOKENS,
-        "stream": False,
+        "stream": True,
     }
     headers = {"Authorization": f"Bearer {DEEPSEEK_API_KEY}", "Content-Type": "application/json"}
-    logger.info(f"Calling DeepSeek (text): {url}")
+    logger.info(f"Calling DeepSeek (stream): {url}")
     with httpx.Client(timeout=DEEPSEEK_TIMEOUT_SECONDS) as client:
-        resp = client.post(url, headers=headers, json=payload)
-        resp.raise_for_status()
-        data = resp.json()
-    choices = data.get("choices", [])
-    if not choices: raise RuntimeError("DeepSeek returned empty choices")
-    return choices[0].get("message", {}).get("content", "")
+        with client.stream("POST", url, headers=headers, json=payload) as resp:
+            resp.raise_for_status()
+            for line in resp.iter_lines():
+                if line.startswith("data: "):
+                    data_str = line[6:]
+                    if data_str == "[DONE]":
+                        return
+                    try:
+                        data = json.loads(data_str)
+                        delta = data.get("choices", [{}])[0].get("delta", {})
+                        content = delta.get("content", "")
+                        if content:
+                            yield content
+                    except json.JSONDecodeError:
+                        pass
 
 
 def integrate_chat_history(original_diary: dict, messages: list[dict]) -> dict:
