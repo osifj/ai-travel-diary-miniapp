@@ -1,0 +1,57 @@
+<!-- pages/index/index.wxml — 首页 -->
+<view class="container">
+  <!-- 顶部区域 -->
+  <view class="hero">
+    <view class="hero-icon">📸✨</view>
+    <view class="title">AI 游玩日志生成器</view>
+    <view class="subtitle">上传旅行照片，自动生成你的专属旅行回忆</view>
+  </view>
+
+  <!-- 功能卡片 -->
+  <view class="card feature-list">
+    <view class="feature-item">
+      <text class="feature-icon">📷</text>
+      <view class="feature-info">
+        <text class="feature-title">智能照片解析</text>
+        <text class="feature-desc">自动读取拍摄时间、GPS 地点</text>
+      </view>
+    </view>
+    <view class="feature-item">
+      <text class="feature-icon">🤖</text>
+      <view class="feature-info">
+        <text class="feature-title">AI 场景识别</text>
+        <text class="feature-desc">识别场景、活动、美食、氛围</text>
+      </view>
+    </view>
+    <view class="feature-item">
+      <text class="feature-icon">📝</text>
+      <view class="feature-info">
+        <text class="feature-title">自动生成游记</text>
+        <text class="feature-desc">自然语言描述你的旅行故事</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 操作按钮 -->
+  <button class="btn-primary btn-block" bindtap="goToUpload">
+    选择照片开始
+  </button>
+
+  <!-- 后端状态 -->
+  <view class="status-bar">
+    <text class="status-label">后端服务: </text>
+    <text class="status-dot {{backendStatus}}"></text>
+    <text wx:if="{{backendStatus === 'online'}}" class="status-text online">已连接</text>
+    <text wx:elif="{{backendStatus === 'offline'}}" class="status-text offline">未连接</text>
+    <text wx:else class="status-text">检测中...</text>
+  </view>
+
+  <!-- 提示 -->
+  <view class="tips">
+    <text class="tips-title">💡 使用提示</text>
+    <text class="tips-item">1. 点击「选择照片开始」从相册选择旅行照片</text>
+    <text class="tips-item">2. 尽量选择包含 GPS 信息的原图，获得准确地点</text>
+    <text class="tips-item">3. 上传后系统会自动分析并生成游玩日志</text>
+    <text class="tips-item">4. 支持 JPG / PNG 格式照片</text>
+  </view>
+</view>

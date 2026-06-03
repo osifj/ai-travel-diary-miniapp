@@ -1,0 +1,121 @@
+/* pages/result/result.wxss */
+
+.diary-header {
+  text-align: center;
+}
+
+.diary-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #222;
+  display: block;
+  margin-bottom: 10px;
+}
+
+.diary-meta {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.meta-item {
+  font-size: 12px;
+  color: #999;
+}
+
+.section-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #555;
+  display: block;
+  margin-bottom: 10px;
+}
+
+.keyword-list {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.diary-content {
+  line-height: 1.8;
+}
+
+.content-paragraph {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 15px;
+  color: #444;
+  text-indent: 2em;
+}
+
+.photo-summary {
+  padding: 10px 0;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.photo-summary:last-child {
+  border-bottom: none;
+}
+
+.photo-summary-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.photo-number {
+  font-size: 13px;
+  font-weight: 600;
+  color: #4A90D9;
+}
+
+.photo-time {
+  font-size: 11px;
+  color: #999;
+}
+
+.photo-location {
+  font-size: 11px;
+  color: #999;
+}
+
+.photo-desc {
+  font-size: 13px;
+  color: #666;
+  display: block;
+  margin-bottom: 6px;
+  line-height: 1.5;
+}
+
+.photo-tags {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.action-buttons {
+  margin-top: 24px;
+}
+
+.action-buttons button {
+  margin-bottom: 10px;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 60px 0;
+}
+
+.empty-icon {
+  font-size: 64px;
+  margin-bottom: 12px;
+}
+
+.empty-text {
+  font-size: 14px;
+  color: #bbb;
+  margin-bottom: 20px;
+}

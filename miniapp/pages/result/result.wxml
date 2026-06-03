@@ -1,0 +1,68 @@
+<!-- pages/result/result.wxml — 日志结果页 -->
+<view class="container">
+  <!-- 加载中 -->
+  <view wx:if="{{loading}}" class="loading-spinner">
+    <view class="spinner"></view>
+    <text>加载中...</text>
+  </view>
+
+  <!-- 无日志 -->
+  <view wx:elif="{{!diary}}" class="empty-state">
+    <text class="empty-icon">📝</text>
+    <text class="empty-text">还没有生成日志</text>
+    <button class="btn-primary" bindtap="goHome">返回首页</button>
+  </view>
+
+  <!-- 日志内容 -->
+  <view wx:else>
+    <!-- 标题卡片 -->
+    <view class="card diary-header">
+      <text class="diary-title">{{diary.title}}</text>
+      <view class="diary-meta">
+        <text class="meta-item">📅 {{diary.date}}</text>
+        <text class="meta-item">📍 {{diary.city || '未知城市'}}</text>
+        <text class="meta-item">📷 {{diary.photo_count || photos.length}} 张照片</text>
+      </view>
+    </view>
+
+    <!-- 关键词 -->
+    <view wx:if="{{diary.keywords.length > 0}}" class="card">
+      <text class="section-label">🏷️ 关键词</text>
+      <view class="keyword-list">
+        <text wx:for="{{diary.keywords}}" wx:key="index" class="tag">{{item}}</text>
+      </view>
+    </view>
+
+    <!-- 正文 -->
+    <view class="card diary-content">
+      <text class="section-label">📖 游玩日记</text>
+      <view class="content-text">
+        <text wx:for="{{diary.content.split('\n\n')}}" wx:key="index" class="content-paragraph">{{item}}</text>
+      </view>
+    </view>
+
+    <!-- 每张照片的简要分析 -->
+    <view wx:if="{{photos.length > 0}}" class="card">
+      <text class="section-label">🖼️ 照片详情 ({{photos.length}}张)</text>
+      <view wx:for="{{photos}}" wx:key="index" class="photo-summary">
+        <view class="photo-summary-header">
+          <text class="photo-number">#{{index + 1}}</text>
+          <text wx:if="{{item.taken_time}}" class="photo-time">{{item.taken_time}}</text>
+          <text wx:if="{{item.city}}" class="photo-location">📍 {{item.city}}</text>
+        </view>
+        <text wx:if="{{item.diary_sentence}}" class="photo-desc">{{item.diary_sentence}}</text>
+        <view wx:if="{{item.scene_type || item.activity || item.mood}}" class="photo-tags">
+          <text wx:if="{{item.scene_type}}" class="tag">{{item.scene_type}}</text>
+          <text wx:if="{{item.activity}}" class="tag">{{item.activity}}</text>
+          <text wx:if="{{item.mood}}" class="tag">{{item.mood}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 操作按钮 -->
+    <view class="action-buttons">
+      <button class="btn-primary btn-block" bindtap="goHome">🏠 返回首页</button>
+      <button class="btn-secondary btn-block" bindtap="goToMap">🗺️ 查看地图</button>
+    </view>
+  </view>
+</view>

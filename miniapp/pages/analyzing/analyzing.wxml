@@ -1,0 +1,38 @@
+<!-- pages/analyzing/analyzing.wxml — 分析进度页 -->
+<view class="container">
+  <!-- 正常进度 -->
+  <view wx:if="{{!errorMessage}}" class="analyzing-area">
+    <view class="spinner-area">
+      <view wx:if="{{!isDone}}" class="spinner"></view>
+      <view wx:else class="done-icon">✅</view>
+    </view>
+
+    <text class="analyzing-title">
+      {{isDone ? '分析完成!' : '正在分析照片...'}}
+    </text>
+
+    <!-- 步骤指示器 -->
+    <view class="steps">
+      <view wx:for="{{steps}}" wx:key="index" class="step">
+        <view class="step-icon {{item.status}}">
+          <text wx:if="{{item.status === 'done'}}">✓</text>
+          <text wx:elif="{{item.status === 'active'}}">●</text>
+          <text wx:else>○</text>
+        </view>
+        <view class="step-info">
+          <text class="step-title {{item.status}}">{{item.title}}</text>
+          <text class="step-desc">{{item.desc}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 错误状态 -->
+  <view wx:else class="error-area">
+    <text class="error-icon">⚠️</text>
+    <text class="error-title">分析失败</text>
+    <text class="error-message">{{errorMessage}}</text>
+    <button class="btn-primary" bindtap="retry">重试</button>
+    <button class="btn-secondary" bindtap="goBack">返回</button>
+  </view>
+</view>

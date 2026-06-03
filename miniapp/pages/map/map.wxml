@@ -1,0 +1,16 @@
+<!-- pages/map/map.wxml — 地图页 (占位) -->
+<view class="container">
+  <view class="card">
+    <text class="section-title">🗺️ 旅行足迹</text>
+    <text class="section-desc">此功能将在后续版本中实现，届时可在地图上查看你的旅行轨迹和照片打点。</text>
+  </view>
+
+  <!-- 地图区域占位 -->
+  <view class="map-placeholder">
+    <text class="map-icon">🗺️</text>
+    <text class="map-text">地图功能开发中...</text>
+    <text class="map-hint">需要接入腾讯位置服务或高德地图 SDK</text>
+  </view>
+
+  <button class="btn-secondary btn-block" bindtap="goBack">返回</button>
+</view>

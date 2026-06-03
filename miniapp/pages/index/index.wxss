@@ -1,0 +1,112 @@
+/* pages/index/index.wxss */
+
+.hero {
+  text-align: center;
+  padding: 40px 0 30px;
+}
+
+.hero-icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+}
+
+.feature-list {
+  margin-bottom: 24px;
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.feature-item:last-child {
+  border-bottom: none;
+}
+
+.feature-icon {
+  font-size: 28px;
+  margin-right: 14px;
+}
+
+.feature-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.feature-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #333;
+}
+
+.feature-desc {
+  font-size: 12px;
+  color: #999;
+  margin-top: 2px;
+}
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 24px;
+  padding: 12px;
+  background: #fafafa;
+  border-radius: 8px;
+}
+
+.status-label {
+  font-size: 13px;
+  color: #999;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin: 0 6px;
+}
+
+.status-dot.online {
+  background: #28a745;
+}
+
+.status-dot.offline {
+  background: #dc3545;
+}
+
+.status-dot.checking {
+  background: #ffc107;
+}
+
+.status-text.online {
+  color: #28a745;
+}
+
+.status-text.offline {
+  color: #dc3545;
+}
+
+.tips {
+  margin-top: 24px;
+  padding: 16px;
+  background: #fff;
+  border-radius: 12px;
+}
+
+.tips-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #666;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.tips-item {
+  display: block;
+  font-size: 12px;
+  color: #999;
+  line-height: 1.8;
+}

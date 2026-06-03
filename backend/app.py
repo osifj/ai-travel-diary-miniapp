@@ -1,0 +1,97 @@
+"""
+AI 游玩日志生成系统 — FastAPI 后端入口。
+
+启动方式:
+    uvicorn app:app --reload --host 0.0.0.0 --port 8000
+"""
+
+import logging
+import sys
+import os
+
+# 确保 backend 目录在 sys.path 中 (方便直接 python app.py)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from models.database import init_db
+
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+# ---- 创建应用 ----
+
+app = FastAPI(
+    title="AI 游玩日志生成系统",
+    description="基于微信小程序与小米 MiMo 多模态模型的智能游玩日志生成系统",
+    version="0.1.0",
+)
+
+# ---- CORS 中间件 ----
+# 允许微信小程序开发工具和本地调试
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 开发阶段允许所有来源
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ---- 初始化数据库 ----
+@app.on_event("startup")
+async def startup_event():
+    """应用启动时初始化数据库."""
+    logger.info("Initializing database...")
+    init_db()
+    logger.info("Database initialized.")
+
+
+# ---- 注册路由 ----
+from api.upload import router as upload_router
+from api.analyze import router as analyze_router
+from api.diary import router as diary_router
+
+app.include_router(upload_router)
+app.include_router(analyze_router)
+app.include_router(diary_router)
+
+
+# ---- Health Check ----
+@app.get("/health", tags=["system"])
+async def health_check():
+    """健康检查接口."""
+    return {
+        "status": "ok",
+        "service": "AI 游玩日志生成系统",
+        "version": "0.1.0",
+    }
+
+
+# ---- 根路由 ----
+@app.get("/", tags=["system"])
+async def root():
+    """根路由 — API 信息."""
+    return {
+        "service": "AI 游玩日志生成系统 API",
+        "docs": "/docs",
+        "health": "/health",
+        "endpoints": {
+            "upload": "POST /upload",
+            "upload_batch": "POST /upload/batch",
+            "analyze": "POST /analyze",
+            "generate_diary": "POST /diary/generate",
+            "get_diary": "GET /diary/{id}",
+            "list_diaries": "GET /diary/",
+        }
+    }
+
+
+# ---- 直接运行 ----
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
