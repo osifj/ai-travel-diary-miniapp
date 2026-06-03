@@ -237,6 +237,8 @@
   .action-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
   .action-row button { flex: 1; min-width: 60px; padding: 8px 6px; border-radius: 8px; border: 1px solid var(--l); background: var(--card); color: var(--t); font-size: 12px; cursor: pointer; }
   .action-row button:active { background: var(--p); color: #fff; }
+  .action-row button.loading { opacity: 0.5; pointer-events: none; }
+  .action-row button.on { background: var(--p); color: #fff; border-color: var(--p); font-weight: 700; }
   /* 聊天 */
   .chat-area { max-height: 300px; overflow-y: auto; padding: 4px 0; }
   .chat-msg { display: flex; margin-bottom: 10px; }
@@ -727,8 +729,14 @@ function initMapDetail() { _renderMap('mapDetail', state.diaryPhotos); }
 
 async function restyleDiary(style) {
   if (!state.diaryResult || !state.diaryResult.diary_id) return;
+  // 按钮 loading 特效
   const btns = document.querySelectorAll('.action-row button');
-  btns.forEach(b => b.disabled = true);
+  btns.forEach(b => { b.classList.add('loading'); b.classList.remove('on'); });
+  // 高亮当前点击的按钮
+  const clickedBtn = Array.from(btns).find(b => b.textContent.includes(style));
+  if (clickedBtn) { clickedBtn.classList.add('on'); clickedBtn.textContent = '...'; }
+  state._currentStyle = style;
+
   try {
     const r = await fetch(`/diary/${state.diaryResult.diary_id}/restyle`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({style}) });
     const d = await r.json();
@@ -736,11 +744,16 @@ async function restyleDiary(style) {
       state.diaryResult.content = d.content;
       state.diaryResult.title = d.title;
       state.diaryResult.keywords = d.keywords;
-      renderDiaryResult(); setTimeout(initMap, 200);
+      const inHistory = !document.getElementById('view-history').classList.contains('hidden');
+      renderDiaryResult(inHistory ? 'historyCard' : 'step-result', inHistory ? 'mapDetail' : 'map');
+      // 新渲染后高亮当前风格
+      setTimeout(() => {
+        const newBtns = document.querySelectorAll('.action-row button');
+        newBtns.forEach(b => { if (b.textContent.includes(style)) b.classList.add('on'); });
+      }, 100);
       toast('已切换为' + style + '风格', 'success');
     } else toast(d.detail || '切换失败', 'error');
   } catch (err) { toast(err.message, 'error'); }
-  btns.forEach(b => b.disabled = false);
 }
 
 function exportMD() {
