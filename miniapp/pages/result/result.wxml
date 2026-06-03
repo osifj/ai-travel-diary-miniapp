@@ -1,25 +1,77 @@
-<!-- pages/result/result.wxml — 极简测试版 -->
+<!-- pages/result/result.wxml — 日志结果页 -->
 <view class="container">
   <view wx:if="{{loading}}" class="loading-spinner">
+    <view class="spinner"></view>
     <text>加载中...</text>
   </view>
 
-  <view wx:elif="{{!diary}}">
-    <text>没有日志</text>
-    <button bindtap="goHome">返回首页</button>
+  <view wx:elif="{{isEmpty}}" class="empty-state">
+    <text class="empty-icon">📝</text>
+    <text class="empty-text">还没有生成日志</text>
+    <button class="btn-primary" bindtap="goHome">返回首页</button>
   </view>
 
-  <view wx:else>
-    <view class="card">
+  <view wx:elif="{{hasDiary}}">
+    <view class="card diary-header">
       <text class="diary-title">{{diary.title}}</text>
-      <text>{{diary.date}}</text>
-      <text>{{cityDisplay}}</text>
+      <view class="diary-meta">
+        <text class="meta-item">📅 {{diary.date}}</text>
+        <text class="meta-item">📍 {{cityDisplay}}</text>
+        <text class="meta-item">📷 {{photoCount}} 张照片</text>
+      </view>
     </view>
 
-    <view class="card">
-      <text>{{diary.content}}</text>
+    <view wx:if="{{hasKeywords}}" class="card">
+      <text class="section-label">🏷️ 关键词</text>
+      <view class="keyword-list">
+        <view wx:for="{{keywordItems}}" class="tag">{{item.text}}</view>
+      </view>
     </view>
 
-    <button bindtap="goHome">返回首页</button>
+    <view wx:if="{{hasPlaceIntro}}" class="card info-card">
+      <text class="section-label">📍 地点小记</text>
+      <text class="info-text">{{placeIntroText}}</text>
+    </view>
+
+    <view wx:if="{{hasWeather}}" class="card info-card">
+      <text class="section-label">🌦️ 天气简介</text>
+      <text class="info-text">{{weatherText}}</text>
+    </view>
+
+    <view class="card diary-content">
+      <text class="section-label">📖 游玩日记</text>
+      <view class="content-text">
+        <view wx:for="{{contentParagraphs}}">
+          <text class="content-paragraph">{{item.text}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{hasPhotos}}" class="card">
+      <text class="section-label">🖼️ 照片详情 ({{photoCount}}张)</text>
+      <view wx:for="{{photoSummaries}}" class="photo-summary">
+        <view class="photo-summary-header">
+          <text class="photo-number">#{{item.index}}</text>
+          <text wx:if="{{item.hasTime}}" class="photo-time">{{item.taken_time}}</text>
+          <text wx:if="{{item.hasCity}}" class="photo-location">📍 {{item.city}}</text>
+        </view>
+        <view class="source-row">
+          <text class="source-pill">时间：{{item.timeSourceText}}</text>
+          <text class="source-pill">地点：{{item.locationSourceText}}</text>
+        </view>
+        <text wx:if="{{item.hasPlace}}" class="photo-place">{{item.placeText}}</text>
+        <text wx:if="{{item.hasDesc}}" class="photo-desc">{{item.diary_sentence}}</text>
+        <view wx:if="{{item.hasTags}}" class="photo-tags">
+          <text wx:if="{{item.scene_type}}" class="tag">{{item.scene_type}}</text>
+          <text wx:if="{{item.activity}}" class="tag">{{item.activity}}</text>
+          <text wx:if="{{item.mood}}" class="tag">{{item.mood}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="action-buttons">
+      <button class="btn-primary btn-block" bindtap="goHome">🏠 返回首页</button>
+      <button class="btn-secondary btn-block" bindtap="goToMap">🗺️ 查看地图</button>
+    </view>
   </view>
 </view>

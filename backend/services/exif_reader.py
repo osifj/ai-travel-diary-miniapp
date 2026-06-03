@@ -126,7 +126,7 @@ def _check_exiftool() -> bool:
 def _read_with_exiftool(file_path: str) -> dict[str, Any]:
     """使用 exiftool 读取 EXIF (JSON 输出)."""
     result = subprocess.run(
-        ["exiftool", "-json", "-g", file_path],
+        ["exiftool", "-json", "-n", file_path],
         capture_output=True, text=True, timeout=30
     )
     if result.returncode != 0:
@@ -139,11 +139,11 @@ def _read_with_exiftool(file_path: str) -> dict[str, Any]:
     raw = data[0]
     gps_data = _parse_gps_from_exiftool(raw)
 
-    # 提取时间: 优先 DateTimeOriginal > CreateDate > FileModifyDate
+    # 提取拍摄时间: 不使用 FileModifyDate，避免微信临时文件时间冒充拍摄时间
     taken_time = (
         raw.get("DateTimeOriginal")
         or raw.get("CreateDate")
-        or raw.get("FileModifyDate")
+        or raw.get("MediaCreateDate")
     )
 
     return {
@@ -182,6 +182,64 @@ def _read_with_pillow(file_path: str) -> dict[str, Any]:
         "device_model": exif_data.get(272) or getattr(img, "info", {}).get("model"),
         "image_format": (img.format or os.path.splitext(file_path)[1].lstrip(".")).upper(),
         "location_status": "found" if gps_data else "missing",
+    }
+
+
+def _read_with_macos_metadata(file_path: str) -> dict[str, Any]:
+    """使用 macOS Spotlight/sips 兜底读取 HEIC/JPEG 基础时间和 GPS."""
+    latitude = longitude = None
+    taken_time = None
+
+    try:
+        result = subprocess.run(
+            [
+                "mdls",
+                "-raw",
+                "-name", "kMDItemContentCreationDate",
+                "-name", "kMDItemLatitude",
+                "-name", "kMDItemLongitude",
+                file_path,
+            ],
+            capture_output=True, text=True, timeout=10
+        )
+        values = [line.strip() for line in result.stdout.splitlines()]
+        if len(values) >= 3:
+            if values[0] and values[0] != "(null)":
+                taken_time = _normalize_time(values[0].replace(" +0000", ""))
+            if values[1] and values[1] != "(null)":
+                latitude = round(float(values[1]), 6)
+            if values[2] and values[2] != "(null)":
+                longitude = round(float(values[2]), 6)
+    except Exception as e:
+        logger.warning(f"mdls metadata read failed: {e}")
+
+    device_make = device_model = image_format = None
+    try:
+        result = subprocess.run(
+            ["sips", "-g", "make", "-g", "model", "-g", "format", file_path],
+            capture_output=True, text=True, timeout=10
+        )
+        for line in result.stdout.splitlines():
+            text = line.strip()
+            if text.startswith("make:"):
+                device_make = text.split(":", 1)[1].strip() or None
+            elif text.startswith("model:"):
+                device_model = text.split(":", 1)[1].strip() or None
+            elif text.startswith("format:"):
+                image_format = text.split(":", 1)[1].strip().upper() or None
+    except Exception as e:
+        logger.warning(f"sips metadata read failed: {e}")
+
+    has_gps = latitude is not None and longitude is not None
+    return {
+        "taken_time": taken_time,
+        "latitude": latitude,
+        "longitude": longitude,
+        "has_gps": has_gps,
+        "device_make": device_make,
+        "device_model": device_model,
+        "image_format": image_format or os.path.splitext(file_path)[1].lstrip(".").upper(),
+        "location_status": "found" if has_gps else "missing",
     }
 
 
@@ -243,9 +301,20 @@ def read_exif(file_path: str) -> dict[str, Any]:
 
     if _EXIFTOOL_AVAILABLE:
         try:
-            return _read_with_exiftool(file_path)
+            exif_data = _read_with_exiftool(file_path)
+            if exif_data.get("taken_time") or exif_data.get("has_gps"):
+                return exif_data
         except Exception as e:
             logger.warning(f"exiftool read failed, falling back to Pillow: {e}")
+
+    ext = os.path.splitext(file_path)[1].lower()
+    if os.name == "posix" and ext in (".heic", ".heif"):
+        try:
+            macos_data = _read_with_macos_metadata(file_path)
+            if macos_data.get("taken_time") or macos_data.get("has_gps"):
+                return macos_data
+        except Exception as e:
+            logger.warning(f"macOS metadata read failed, falling back to Pillow: {e}")
 
     try:
         return _read_with_pillow(file_path)

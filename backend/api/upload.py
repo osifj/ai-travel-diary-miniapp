@@ -7,7 +7,8 @@
 import os
 import uuid
 import logging
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from typing import Optional
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 
 from models.database import insert_photo
 from services.exif_reader import read_exif
@@ -25,8 +26,60 @@ ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".heic", ".heif", ".webp", ".bmp"
 MAX_FILE_SIZE = 30 * 1024 * 1024  # 30 MB
 
 
+def _to_float(value: Optional[str]) -> Optional[float]:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
+
+def _clean_text(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    text = value.strip()
+    return text or None
+
+
+def _merge_effective_exif(exif_data: Optional[dict], client_data: dict) -> dict:
+    effective = dict(exif_data or {})
+    client_time = client_data.get("taken_time")
+    client_latitude = client_data.get("latitude")
+    client_longitude = client_data.get("longitude")
+    has_client_gps = client_latitude is not None and client_longitude is not None
+
+    if not effective.get("taken_time") and client_time:
+        effective["taken_time"] = client_time
+        effective["time_source"] = "user"
+    else:
+        effective["time_source"] = "exif" if effective.get("taken_time") else "unknown"
+
+    if not effective.get("has_gps") and has_client_gps:
+        effective["latitude"] = client_latitude
+        effective["longitude"] = client_longitude
+        effective["has_gps"] = True
+        effective["location_status"] = "found"
+        effective["location_source"] = "user"
+    else:
+        effective["location_source"] = "exif" if effective.get("has_gps") else "unknown"
+
+    effective["client_city"] = client_data.get("city")
+    effective["client_address"] = client_data.get("address")
+    effective["client_place_name"] = client_data.get("place_name")
+    return effective
+
+
 @router.post("")
-async def upload_photo(file: UploadFile = File(...)):
+async def upload_photo(
+    file: UploadFile = File(...),
+    client_taken_time: Optional[str] = Form(None),
+    client_latitude: Optional[str] = Form(None),
+    client_longitude: Optional[str] = Form(None),
+    client_city: Optional[str] = Form(None),
+    client_address: Optional[str] = Form(None),
+    client_place_name: Optional[str] = Form(None),
+):
     """
     上传单张图片。
     
@@ -77,12 +130,20 @@ async def upload_photo(file: UploadFile = File(...)):
         file_size=file_size,
     )
 
-    # ---- 5. 读取 EXIF ----
+    # ---- 5. 读取 EXIF + 合并小程序端补充元数据 ----
     exif_data = None
     exif_error = None
+    client_data = {
+        "taken_time": _clean_text(client_taken_time),
+        "latitude": _to_float(client_latitude),
+        "longitude": _to_float(client_longitude),
+        "city": _clean_text(client_city),
+        "address": _clean_text(client_address),
+        "place_name": _clean_text(client_place_name),
+    }
     try:
         exif_data = read_exif(file_path)
-        from models.database import update_photo_exif
+        from models.database import update_photo_exif, update_photo_client_metadata
         update_photo_exif(
             photo_id=photo_id,
             taken_time=exif_data.get("taken_time"),
@@ -93,16 +154,21 @@ async def upload_photo(file: UploadFile = File(...)):
             device_model=exif_data.get("device_model"),
             image_format=exif_data.get("image_format"),
         )
+        update_photo_client_metadata(photo_id=photo_id, **client_data)
     except Exception as e:
         exif_error = str(e)
         logger.warning(f"EXIF read failed for photo {photo_id}: {e}")
+        from models.database import update_photo_client_metadata
+        update_photo_client_metadata(photo_id=photo_id, **client_data)
+
+    effective_exif = _merge_effective_exif(exif_data, client_data)
 
     return {
         "success": True,
         "photo_id": photo_id,
         "filename": file.filename,
         "file_size": file_size,
-        "exif": exif_data,
+        "exif": effective_exif,
         "exif_error": exif_error,
     }
 

@@ -21,6 +21,10 @@ from models.database import (
 from services.image_preprocess import strip_exif_and_compress
 from services.mimo_client import analyze_image, analyze_image_mock, is_configured
 from services.geocoder import resolve_location
+from services.deepseek_client import (
+    generate_photo_fallback,
+    is_configured as deepseek_is_configured,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -99,17 +103,59 @@ async def analyze_photos(request: AnalyzeRequest):
             else:
                 ai_result = analyze_image(processed_path)
 
+            ai_error = ai_result.get("error")
+
+            if ai_error and deepseek_is_configured():
+                try:
+                    ai_result = generate_photo_fallback({
+                        "photo_id": photo_id,
+                        "taken_time": photo.get("taken_time"),
+                        "latitude": photo.get("latitude"),
+                        "longitude": photo.get("longitude"),
+                        "city": photo.get("city"),
+                        "address": photo.get("address"),
+                        "place_name": photo.get("place_name"),
+                        "mimo_error": ai_error,
+                    })
+                    ai_error = None
+                except Exception as e:
+                    logger.warning(f"DeepSeek photo fallback failed for {photo_id}: {e}")
+
             # ---- 4. 地点解析 (如果有 GPS 且 geocode=true) ----
             location = {
-                "country": None, "city": None, "district": None,
-                "address": None, "place_name": None, "location_status": "unknown"
+                "country": photo.get("country"),
+                "city": photo.get("city"),
+                "district": photo.get("district"),
+                "address": photo.get("address"),
+                "place_name": (
+                    photo.get("place_name")
+                    if photo.get("location_source") == "user"
+                    or photo.get("location_status") == "found"
+                    else None
+                ),
+                "location_status": photo.get("location_status") or "unknown",
+                "location_source": photo.get("location_source") or "unknown",
             }
             if request.geocode and photo.get("has_gps"):
                 lat = photo.get("latitude")
                 lon = photo.get("longitude")
                 if lat is not None and lon is not None:
                     try:
-                        location = resolve_location(lat, lon)
+                        location_source = photo.get("location_source") or "exif"
+                        resolved_location = resolve_location(lat, lon)
+                        resolved_status = resolved_location.get("location_status", "found")
+                        location = {
+                            "country": resolved_location.get("country") or location.get("country"),
+                            "city": resolved_location.get("city") or location.get("city"),
+                            "district": resolved_location.get("district") or location.get("district"),
+                            "address": resolved_location.get("address") or location.get("address"),
+                            "place_name": (
+                                location.get("place_name")
+                                or (resolved_location.get("place_name") if resolved_status == "found" else None)
+                            ),
+                            "location_status": resolved_status,
+                            "location_source": location_source,
+                        }
                         update_photo_location(
                             photo_id=photo_id,
                             country=location.get("country"),
@@ -118,6 +164,7 @@ async def analyze_photos(request: AnalyzeRequest):
                             address=location.get("address"),
                             place_name=location.get("place_name"),
                             location_status=location.get("location_status", "found"),
+                            location_source=location_source,
                         )
                     except Exception as e:
                         logger.warning(f"Geocode failed for photo {photo_id}: {e}")
@@ -134,8 +181,14 @@ async def analyze_photos(request: AnalyzeRequest):
                 confidence=ai_result.get("confidence"),
                 summary=ai_result.get("diary_sentence"),
                 diary_sentence=ai_result.get("diary_sentence"),
-                error_message=ai_result.get("error"),
+                error_message=ai_error,
             )
+
+            if ai_error:
+                errors.append({
+                    "photo_id": photo_id,
+                    "error": f"AI 图片识别失败: {ai_error}",
+                })
 
             # ---- 6. 收集结果 ----
             results.append({
@@ -145,6 +198,8 @@ async def analyze_photos(request: AnalyzeRequest):
                     "taken_time": photo.get("taken_time"),
                     "has_gps": bool(photo.get("has_gps")),
                     "location_status": location.get("location_status"),
+                    "time_source": photo.get("time_source") or "unknown",
+                    "location_source": location.get("location_source") or "unknown",
                 },
                 "location": location,
                 "ai_analysis": {
@@ -157,7 +212,7 @@ async def analyze_photos(request: AnalyzeRequest):
                     "confidence": ai_result.get("confidence"),
                     "diary_sentence": ai_result.get("diary_sentence"),
                 },
-                "error": ai_result.get("error"),
+                "error": ai_error,
             })
 
         except Exception as e:

@@ -1,22 +1,22 @@
 <!-- pages/analyzing/analyzing.wxml — 分析进度页 -->
 <view class="container">
   <!-- 正常进度 -->
-  <view wx:if="{{!errorMessage}}" class="analyzing-area">
+  <view wx:if="{{showNormalArea}}" class="analyzing-area">
     <view class="spinner-area">
-      <view wx:if="{{!isDone}}" class="spinner"></view>
+      <view wx:if="{{showSpinner}}" class="spinner"></view>
       <view wx:else class="done-icon">✅</view>
     </view>
 
     <text class="analyzing-title">
-      {{isDone ? '分析完成!' : '正在分析照片...'}}
+      {{analyzingTitle}}
     </text>
 
     <!-- 步骤指示器 -->
     <view class="steps">
-      <view wx:for="{{steps}}" wx:key="index" class="step">
+      <view wx:for="{{steps}}" class="step">
         <view class="step-icon {{item.status}}">
-          <text wx:if="{{item.status === 'done'}}">✓</text>
-          <text wx:elif="{{item.status === 'active'}}">●</text>
+          <text wx:if="{{item.isDone}}">✓</text>
+          <text wx:elif="{{item.isActive}}">●</text>
           <text wx:else>○</text>
         </view>
         <view class="step-info">

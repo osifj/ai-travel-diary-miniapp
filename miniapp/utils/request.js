@@ -12,7 +12,7 @@ const app = getApp();
  * @returns {Promise}
  */
 function request(url, method = 'GET', data = {}) {
-  const baseUrl = app ? app.globalData.baseUrl : 'http://127.0.0.1:8000';
+  const baseUrl = app ? app.globalData.baseUrl : 'http://192.168.8.158:8000';
 
   return new Promise((resolve, reject) => {
     wx.request({
@@ -49,14 +49,15 @@ function request(url, method = 'GET', data = {}) {
  * @param {string} filePath - 本地文件路径
  * @returns {Promise}
  */
-function uploadFile(filePath) {
-  const baseUrl = app ? app.globalData.baseUrl : 'http://127.0.0.1:8000';
+function uploadFile(filePath, formData = {}) {
+  const baseUrl = app ? app.globalData.baseUrl : 'http://192.168.8.158:8000';
 
   return new Promise((resolve, reject) => {
     wx.uploadFile({
       url: `${baseUrl}/upload`,
       filePath: filePath,
       name: 'file',
+      formData: formData,
       success(res) {
         try {
           const data = JSON.parse(res.data);

@@ -3,17 +3,43 @@
   <!-- 说明 -->
   <view class="card">
     <text class="section-title">📷 选择旅行照片</text>
-    <text class="section-desc">从手机相册选择旅行中拍摄的照片，支持 JPG / PNG 格式。\n建议选择包含 GPS 位置信息的原图。</text>
+    <text class="section-desc">从手机相册选择旅行中拍摄的照片，支持 JPG / PNG / HEIC 格式。\n建议选择包含 GPS 位置信息的原图。</text>
+  </view>
+
+  <!-- 兜底元数据 -->
+  <view class="card">
+    <text class="section-title">🧭 旅行信息兜底</text>
+    <text class="section-desc">{{metadataTip}}</text>
+    <view class="meta-row">
+      <picker mode="date" bindchange="onDateChange">
+        <view class="meta-picker">
+          <text class="meta-label">日期</text>
+          <text class="meta-value">{{dateText}}</text>
+        </view>
+      </picker>
+      <picker mode="time" bindchange="onTimeChange">
+        <view class="meta-picker">
+          <text class="meta-label">时间</text>
+          <text class="meta-value">{{timeText}}</text>
+        </view>
+      </picker>
+    </view>
+    <button class="btn-secondary btn-block meta-location-btn" bindtap="chooseLocation">
+      📍 {{locationText}}
+    </button>
+    <text wx:if="{{hasLocation}}" class="section-desc">{{locationDetailText}}</text>
+    <button wx:if="{{hasLocation}}" class="btn-text" bindtap="clearLocation">清除地点</button>
   </view>
 
   <!-- 已选照片预览 -->
-  <view wx:if="{{selectedImages.length > 0}}" class="preview-section">
-    <text class="section-label">已选择 {{selectedImages.length}} 张照片</text>
+  <view wx:if="{{hasSelectedImages}}" class="preview-section">
+    <text class="section-label">已选择 {{selectedCount}} 张照片</text>
     <view class="preview-grid">
-      <view wx:for="{{selectedImages}}" wx:key="index" class="preview-item">
+      <view wx:for="{{selectedImages}}" class="preview-item">
         <image src="{{item.path}}" mode="aspectFill" class="preview-img" />
         <view class="preview-remove" data-index="{{index}}" bindtap="removeImage">✕</view>
-        <text wx:if="{{item.size}}" class="preview-size">{{item.size > 1024*1024 ? (item.size/1024/1024).toFixed(1) + 'MB' : (item.size/1024).toFixed(0) + 'KB'}}</text>
+        <text wx:if="{{item.hasSize}}" class="preview-size">{{item.sizeText}}</text>
+        <text class="preview-type">{{item.fileTypeText}}</text>
       </view>
     </view>
   </view>
@@ -21,15 +47,15 @@
   <!-- 操作按钮 -->
   <view class="action-buttons">
     <button class="btn-secondary btn-block" bindtap="chooseImages" disabled="{{isUploading}}">
-      {{selectedImages.length > 0 ? '继续添加照片' : '从相册选择照片'}}
+      {{chooseButtonText}}
     </button>
 
     <button
-      wx:if="{{selectedImages.length > 0 && !isUploading}}"
+      wx:if="{{showUploadButton}}"
       class="btn-primary btn-block"
       bindtap="uploadAll"
     >
-      上传 {{selectedImages.length}} 张照片
+      {{uploadButtonText}}
     </button>
   </view>
 
@@ -39,18 +65,20 @@
     <view class="progress-bar">
       <view class="progress-fill" style="width: {{uploadProgress}}%"></view>
     </view>
-    <text class="progress-text">{{doneCount}} / {{totalCount}} ({{uploadProgress}}%)</text>
+    <text class="progress-text">{{progressText}}</text>
   </view>
 
   <!-- 上传结果 -->
-  <view wx:if="{{uploadResults.length > 0 && !isUploading}}" class="card">
+  <view wx:if="{{showUploadResults}}" class="card">
     <text class="section-label">上传结果</text>
-    <view wx:for="{{uploadResults}}" wx:key="index" class="result-item">
-      <text class="result-icon">{{item.success ? '✅' : '❌'}}</text>
+    <view wx:for="{{uploadResults}}" class="result-item">
+        <text class="result-icon">{{item.icon}}</text>
       <view class="result-info">
-        <text class="result-name">{{item.filename || '未知文件'}}</text>
-        <text wx:if="{{item.exif}}" class="result-exif">{{item.exif.taken_time || '无时间'}} | {{item.exif.location_status === 'found' ? '有GPS' : '无GPS'}}</text>
-        <text wx:if="{{item.error}}" class="result-error">{{item.error}}</text>
+        <text class="result-name">{{item.filenameText}}</text>
+        <text wx:if="{{item.hasImageFormat}}" class="result-exif">格式：{{item.imageFormat}}</text>
+        <text wx:if="{{item.hasExif}}" class="result-exif">{{item.exifText}}</text>
+        <text wx:if="{{item.hasMissingMeta}}" class="result-warning">缺少时间或 GPS，可用上方旅行信息兜底</text>
+        <text wx:if="{{item.hasError}}" class="result-error">{{item.error}}</text>
       </view>
     </view>
   </view>
@@ -65,7 +93,7 @@
   </button>
 
   <!-- 空状态 -->
-  <view wx:if="{{selectedImages.length === 0 && uploadResults.length === 0}}" class="empty-state">
+  <view wx:if="{{isEmpty}}" class="empty-state">
     <text class="empty-icon">📷</text>
     <text class="empty-text">点击上方按钮选择旅行照片</text>
   </view>

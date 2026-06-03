@@ -4,6 +4,9 @@ const app = getApp();
 Page({
   data: {
     backendStatus: 'checking', // checking | online | offline
+    isBackendOnline: false,
+    isBackendOffline: false,
+    isBackendChecking: true,
   },
 
   onShow() {
@@ -12,20 +15,29 @@ Page({
 
   checkBackend() {
     const that = this;
-    that.setData({ backendStatus: 'checking' });
+    that.setBackendStatus('checking');
     wx.request({
       url: `${app.globalData.baseUrl}/health`,
       method: 'GET',
       success(res) {
         if (res.statusCode === 200 && res.data.status === 'ok') {
-          that.setData({ backendStatus: 'online' });
+          that.setBackendStatus('online');
         } else {
-          that.setData({ backendStatus: 'offline' });
+          that.setBackendStatus('offline');
         }
       },
       fail() {
-        that.setData({ backendStatus: 'offline' });
+        that.setBackendStatus('offline');
       }
+    });
+  },
+
+  setBackendStatus(status) {
+    this.setData({
+      backendStatus: status,
+      isBackendOnline: status === 'online',
+      isBackendOffline: status === 'offline',
+      isBackendChecking: status === 'checking',
     });
   },
 

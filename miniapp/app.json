@@ -12,6 +12,14 @@
     "navigationBarTextStyle": "white",
     "backgroundColor": "#f5f5f5"
   },
+  "permission": {
+    "scope.userLocation": {
+      "desc": "用于在照片缺少 GPS 时手动选择旅行地点"
+    }
+  },
+  "requiredPrivateInfos": [
+    "chooseLocation"
+  ],
   "style": "v2",
   "sitemapLocation": "sitemap.json"
 }

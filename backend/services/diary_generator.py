@@ -16,7 +16,7 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
-def generate_diary(photos: list[dict]) -> dict:
+def generate_diary(photos: list[dict], weather: Optional[dict] = None) -> dict:
     """
     根据一组照片分析结果生成游玩日志。
 
@@ -70,7 +70,10 @@ def generate_diary(photos: list[dict]) -> dict:
     title = _generate_title(city, main_date, sorted_photos)
 
     # ---- 6. 生成正文 ----
-    content = _generate_content(city, main_date, sorted_photos, scene_counts, activity_counts, all_food, dominant_mood)
+    content = _generate_content(
+        city, main_date, sorted_photos, scene_counts, activity_counts,
+        all_food, dominant_mood, weather
+    )
 
     # ---- 7. 生成关键词 ----
     keywords = _generate_keywords(city, scene_counts, activity_counts, all_food, dominant_mood)
@@ -86,6 +89,9 @@ def generate_diary(photos: list[dict]) -> dict:
         "keywords": keywords,
         "photo_count": len(sorted_photos),
         "photo_summaries": photo_summaries,
+        "weather_summary": (weather or {}).get("summary"),
+        "place_intro": None,
+        "generator": "template",
     }
 
 
@@ -160,6 +166,7 @@ def _generate_content(
     activity_counts: dict,
     all_food: list[str],
     dominant_mood: str,
+    weather: Optional[dict] = None,
 ) -> str:
     """生成游玩日志正文."""
 
@@ -170,6 +177,9 @@ def _generate_content(
     # 开头
     lines = []
     lines.append(f"{date_display}，你在{city_name}记录了{photo_count}张照片。")
+
+    if weather and weather.get("summary") and weather.get("source") not in ("missing", "error"):
+        lines.append(weather["summary"])
 
     # 按场景描述
     scene_desc_map = {
@@ -344,6 +354,10 @@ def _generate_photo_summaries(photos: list[dict]) -> list[dict]:
             "taken_time": p.get("taken_time"),
             "city": p.get("city"),
             "address": p.get("address"),
+            "place_name": p.get("place_name"),
+            "time_source": p.get("time_source"),
+            "location_source": p.get("location_source"),
+            "location_status": p.get("location_status"),
             "scene_type": p.get("scene_type"),
             "activity": p.get("activity"),
             "diary_sentence": p.get("diary_sentence"),

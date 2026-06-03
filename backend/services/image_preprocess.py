@@ -10,6 +10,7 @@
 import io
 import logging
 import os
+import subprocess
 from PIL import Image
 from typing import Optional
 
@@ -79,10 +80,44 @@ def strip_exif_and_compress(
         return output_path
 
     except Exception as e:
+        if os.path.splitext(input_path)[1].lower() in (".heic", ".heif"):
+            converted = _convert_heic_with_sips(input_path, output_path, max_dimension)
+            if converted:
+                return converted
+
         logger.error(f"Image processing failed: {e}")
         # 如果处理失败，返回原图 (由调用方决定是否使用)
         logger.warning(f"Falling back to original: {input_path}")
         return input_path
+
+
+def _convert_heic_with_sips(
+    input_path: str,
+    output_path: str,
+    max_dimension: int,
+) -> Optional[str]:
+    """macOS 下用 sips 转 HEIC/HEIF 为 JPEG，供 AI 分析使用."""
+    try:
+        result = subprocess.run(
+            [
+                "sips",
+                "-s", "format", "jpeg",
+                "--resampleHeightWidthMax", str(max_dimension),
+                input_path,
+                "--out", output_path,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            logger.warning(f"sips HEIC convert failed: {result.stderr}")
+            return None
+        logger.info(f"Converted HEIC with sips: {output_path}")
+        return output_path
+    except Exception as e:
+        logger.warning(f"sips HEIC convert error: {e}")
+        return None
 
 
 def create_thumbnail(

@@ -1,0 +1,36 @@
+{
+  "description": "AI 游玩日志小程序项目配置",
+  "compileType": "miniprogram",
+  "libVersion": "3.16.1",
+  "appid": "wxeac4f835b97182bf",
+  "projectname": "ai-travel-diary-miniapp",
+  "setting": {
+    "urlCheck": false,
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "minified": true,
+    "newFeature": true,
+    "coverView": true,
+    "nodeModules": false,
+    "autoAudits": false,
+    "showShadowRootInWxmlPanel": true,
+    "scopeDataCheck": false,
+    "uglifyFileName": false,
+    "checkInvalidKey": true,
+    "checkSiteMap": true,
+    "uploadWithSourceMap": true,
+    "compileHotReLoad": false,
+    "useStaticServer": true,
+    "babelSetting": {
+      "ignore": [],
+      "disablePlugins": [],
+      "outputPath": ""
+    },
+    "minifyWXML": true
+  },
+  "packOptions": {
+    "ignore": []
+  },
+  "condition": {}
+}

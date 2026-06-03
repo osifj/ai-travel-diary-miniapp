@@ -30,5 +30,8 @@ backend/data/processed/*
 # pytest
 .pytest_cache/
 
+# 本地临时文件
+work/
+
 # 打包产物
 *.zip

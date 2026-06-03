@@ -15,6 +15,8 @@ from models.database import (
     get_photos_by_ids, insert_diary, get_diary, get_diaries_by_user
 )
 from services.diary_generator import generate_diary
+from services.weather_service import get_weather_summary
+from services.deepseek_client import generate_rich_diary, is_configured as deepseek_is_configured
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +39,9 @@ class GenerateDiaryResponse(BaseModel):
     keywords: list[str]
     photo_count: int
     photo_summaries: list[dict]
+    weather_summary: Optional[str] = None
+    place_intro: Optional[str] = None
+    generator: str = "template"
     error: Optional[str] = None
 
 
@@ -71,9 +76,15 @@ async def create_diary(request: GenerateDiaryRequest):
     if missing_ids:
         logger.warning(f"Some photos not found: {missing_ids}")
 
-    # ---- 2. 转换为 diary_generator 需要的格式 ----
+    # ---- 2. 转换为 diary_generator/DeepSeek 需要的格式 ----
     photo_data = []
     for p in photos:
+        precise_place_name = (
+            p.get("place_name")
+            if p.get("location_source") == "user"
+            or p.get("location_status") == "found"
+            else None
+        )
         photo_data.append({
             "photo_id": p["id"],
             "taken_time": p.get("taken_time"),
@@ -81,6 +92,10 @@ async def create_diary(request: GenerateDiaryRequest):
             "longitude": p.get("longitude"),
             "city": p.get("city"),
             "address": p.get("address"),
+            "place_name": precise_place_name,
+            "time_source": p.get("time_source"),
+            "location_source": p.get("location_source"),
+            "location_status": p.get("location_status"),
             "scene_type": p.get("ai_scene_type"),
             "activity": p.get("ai_activity"),
             "food": p.get("ai_food", []),
@@ -89,11 +104,33 @@ async def create_diary(request: GenerateDiaryRequest):
             "mood": p.get("ai_mood"),
             "confidence": p.get("ai_confidence"),
             "diary_sentence": p.get("diary_sentence"),
+            "error_message": p.get("error_message"),
         })
+    photo_data = sorted(photo_data, key=lambda p: p.get("taken_time") or "9999-99-99 99:99:99")
 
-    # ---- 3. 生成日志 ----
+    weather_data = _build_weather_data(photo_data)
+
+    # ---- 3. 生成日志：DeepSeek 优先，模板兜底 ----
     try:
-        diary_data = generate_diary(photo_data)
+        template_diary = generate_diary(photo_data, weather=weather_data)
+        diary_data = template_diary
+        if deepseek_is_configured():
+            try:
+                rich_context = {
+                    "photos": photo_data,
+                    "weather": weather_data,
+                    "template": template_diary,
+                    "requirements": {
+                        "sort_by_time": True,
+                        "include_place_intro": True,
+                        "include_weather": True,
+                        "language": "zh-CN",
+                    },
+                }
+                rich_diary = generate_rich_diary(rich_context)
+                diary_data = _normalize_rich_diary(rich_diary, template_diary, photo_data, weather_data)
+            except Exception as e:
+                logger.warning(f"DeepSeek diary generation failed, using template: {e}")
     except Exception as e:
         logger.error(f"Diary generation failed: {e}")
         raise HTTPException(status_code=500, detail=f"日志生成失败: {e}")
@@ -108,6 +145,9 @@ async def create_diary(request: GenerateDiaryRequest):
             content=diary_data["content"],
             keywords=diary_data["keywords"],
             photo_ids=request.photo_ids,
+            weather_summary=diary_data.get("weather_summary"),
+            place_intro=diary_data.get("place_intro"),
+            generator=diary_data.get("generator", "template"),
         )
     except Exception as e:
         logger.error(f"Failed to save diary: {e}")
@@ -123,6 +163,9 @@ async def create_diary(request: GenerateDiaryRequest):
         keywords=diary_data["keywords"],
         photo_count=diary_data["photo_count"],
         photo_summaries=diary_data["photo_summaries"],
+        weather_summary=diary_data.get("weather_summary"),
+        place_intro=diary_data.get("place_intro"),
+        generator=diary_data.get("generator", "template"),
     )
 
 
@@ -146,6 +189,15 @@ async def read_diary(diary_id: int):
                 "filename": p["original_filename"],
                 "taken_time": p.get("taken_time"),
                 "city": p.get("city"),
+                "place_name": (
+                    p.get("place_name")
+                    if p.get("location_source") == "user"
+                    or p.get("location_status") == "found"
+                    else None
+                ),
+                "address": p.get("address"),
+                "time_source": p.get("time_source"),
+                "location_source": p.get("location_source"),
                 "scene_type": p.get("ai_scene_type"),
                 "diary_sentence": p.get("diary_sentence"),
             }
@@ -162,4 +214,51 @@ async def list_diaries(user_id: str = "default", limit: int = 20):
         "success": True,
         "count": len(diaries),
         "diaries": diaries,
+    }
+
+
+def _build_weather_data(photo_data: list[dict]) -> dict:
+    """选择最早一张有时间和 GPS 的照片查询天气."""
+    for photo in photo_data:
+        if photo.get("taken_time") and photo.get("latitude") is not None and photo.get("longitude") is not None:
+            return get_weather_summary(
+                latitude=photo.get("latitude"),
+                longitude=photo.get("longitude"),
+                day_value=photo.get("taken_time"),
+                city=photo.get("city"),
+            )
+    return get_weather_summary(None, None, None)
+
+
+def _normalize_rich_diary(
+    rich_diary: dict,
+    template_diary: dict,
+    photo_data: list[dict],
+    weather_data: dict,
+) -> dict:
+    """合并 DeepSeek 输出和模板保底字段."""
+    photo_count = len(photo_data)
+    summaries = rich_diary.get("photo_summaries")
+    if not isinstance(summaries, list) or len(summaries) == 0:
+        summaries = template_diary["photo_summaries"]
+
+    keywords = rich_diary.get("keywords")
+    if not isinstance(keywords, list) or len(keywords) == 0:
+        keywords = template_diary["keywords"]
+
+    content = rich_diary.get("content") or template_diary["content"]
+    place_intro = rich_diary.get("place_intro")
+    weather_summary = weather_data.get("summary") or rich_diary.get("weather_summary")
+
+    return {
+        "title": rich_diary.get("title") or template_diary["title"],
+        "date": rich_diary.get("date") or template_diary["date"],
+        "city": rich_diary.get("city") or template_diary["city"],
+        "content": content,
+        "keywords": keywords[:8],
+        "photo_count": photo_count,
+        "photo_summaries": summaries,
+        "weather_summary": weather_summary,
+        "place_intro": place_intro,
+        "generator": "deepseek",
     }

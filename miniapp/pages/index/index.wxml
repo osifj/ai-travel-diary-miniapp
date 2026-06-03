@@ -41,9 +41,9 @@
   <view class="status-bar">
     <text class="status-label">后端服务: </text>
     <text class="status-dot {{backendStatus}}"></text>
-    <text wx:if="{{backendStatus === 'online'}}" class="status-text online">已连接</text>
-    <text wx:elif="{{backendStatus === 'offline'}}" class="status-text offline">未连接</text>
-    <text wx:else class="status-text">检测中...</text>
+    <text wx:if="{{isBackendOnline}}" class="status-text online">已连接</text>
+    <text wx:elif="{{isBackendOffline}}" class="status-text offline">未连接</text>
+    <text wx:elif="{{isBackendChecking}}" class="status-text">检测中...</text>
   </view>
 
   <!-- 提示 -->
