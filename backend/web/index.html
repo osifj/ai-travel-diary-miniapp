@@ -613,7 +613,9 @@ async function sendChat() {
       }
     }
 
-
+    if (!fullText) {
+      state.chatMessages[state.chatMessages.length - 1].content = 'AI 未返回内容，请重试';
+    }
   } catch (err) {
     state.chatMessages[state.chatMessages.length - 1].content = '网络错误：' + err.message;
   }
@@ -729,31 +731,42 @@ function initMapDetail() { _renderMap('mapDetail', state.diaryPhotos); }
 
 async function restyleDiary(style) {
   if (!state.diaryResult || !state.diaryResult.diary_id) return;
-  // 按钮 loading 特效
-  const btns = document.querySelectorAll('.action-row button');
+  const inHistory = !document.getElementById('view-history').classList.contains('hidden');
+  const container = document.getElementById(inHistory ? 'historyCard' : 'step-result');
+  // 按钮 loading 特效 — 只选当前视图内的按钮
+  const btns = container.querySelectorAll('.action-row button');
   btns.forEach(b => { b.classList.add('loading'); b.classList.remove('on'); });
   // 高亮当前点击的按钮
   const clickedBtn = Array.from(btns).find(b => b.textContent.includes(style));
-  if (clickedBtn) { clickedBtn.classList.add('on'); clickedBtn.textContent = '...'; }
+  let origText = '';
+  if (clickedBtn) { origText = clickedBtn.textContent; clickedBtn.classList.add('on'); clickedBtn.textContent = '...'; }
   state._currentStyle = style;
 
+  let needsCleanup = true;
   try {
     const r = await fetch(`/diary/${state.diaryResult.diary_id}/restyle`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({style}) });
     const d = await r.json();
     if (d.success) {
+      needsCleanup = false; // DOM 会被 renderDiaryResult 重建
       state.diaryResult.content = d.content;
       state.diaryResult.title = d.title;
       state.diaryResult.keywords = d.keywords;
-      const inHistory = !document.getElementById('view-history').classList.contains('hidden');
       renderDiaryResult(inHistory ? 'historyCard' : 'step-result', inHistory ? 'mapDetail' : 'map');
       // 新渲染后高亮当前风格
       setTimeout(() => {
-        const newBtns = document.querySelectorAll('.action-row button');
+        const newContainer = document.getElementById(inHistory ? 'historyCard' : 'step-result');
+        const newBtns = newContainer.querySelectorAll('.action-row button');
         newBtns.forEach(b => { if (b.textContent.includes(style)) b.classList.add('on'); });
       }, 100);
       toast('已切换为' + style + '风格', 'success');
     } else toast(d.detail || '切换失败', 'error');
   } catch (err) { toast(err.message, 'error'); }
+  finally {
+    if (needsCleanup) {
+      btns.forEach(b => b.classList.remove('loading'));
+      if (clickedBtn && clickedBtn.textContent === '...') clickedBtn.textContent = origText;
+    }
+  }
 }
 
 function exportMD() {
