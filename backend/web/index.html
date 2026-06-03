@@ -114,7 +114,13 @@
     animation: spin 0.7s linear infinite; margin: 12px auto;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* 地图 */
+  #map { height: 300px; border-radius: 8px; margin: 12px 0; }
+  .leaflet-popup-content { font-size: 13px; }
+  .leaflet-popup-content strong { font-size: 14px; }
 </style>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body>
 
@@ -397,8 +403,22 @@ async function generateDiary() {
     return;
   }
 
+  // 获取照片详情（含 GPS 坐标）
+  if (state.diaryResult && state.diaryResult.diary_id) {
+    try {
+      const detailRes = await fetch(`/diary/${state.diaryResult.diary_id}`);
+      const detailData = await detailRes.json();
+      if (detailData.success) {
+        state.diaryPhotos = detailData.photos || [];
+      }
+    } catch (err) {
+      state.diaryPhotos = [];
+    }
+  }
+
   el('diaryProgress').classList.add('hidden');
   renderDiaryResult();
+  setTimeout(initMap, 300); // 等 DOM 渲染完再初始化地图
 }
 
 function renderDiaryResult() {
@@ -431,6 +451,8 @@ function renderDiaryResult() {
       <div style="background:#fef9e7;padding:10px 12px;border-radius:8px;margin-bottom:12px;font-size:13px">
         📍 ${d.place_intro}
       </div>` : ''}
+
+    <div id="map" style="height:300px;border-radius:8px;margin-bottom:12px"></div>
 
     <div class="diary-content">${contentHtml}</div>
 
@@ -502,6 +524,49 @@ async function refineDiary() {
     result.classList.remove('hidden');
     result.innerHTML = `<p class="error">请求失败: ${err.message}</p>`;
   }
+}
+</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+function initMap() {
+  const mapEl = document.getElementById('map');
+  if (!mapEl) return;
+
+  const photos = state.diaryPhotos || [];
+  const markers = photos.filter(p => p.has_gps && p.latitude && p.longitude);
+
+  if (markers.length === 0) {
+    mapEl.style.display = 'none';
+    return;
+  }
+
+  // 初始化地图，中心点取第一个有 GPS 的照片
+  const center = [markers[0].latitude, markers[0].longitude];
+  let map = L.map('map').setView(center, 13);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 19,
+  }).addTo(map);
+
+  // 为每张照片添加标记
+  markers.forEach(p => {
+    const popupContent = `<strong>${p.city || ''} ${p.place_name || ''}</strong><br>
+      ${p.diary_sentence || ''}<br>
+      <small>📅 ${p.taken_time || ''}</small>`;
+    L.marker([p.latitude, p.longitude])
+      .addTo(map)
+      .bindPopup(popupContent);
+  });
+
+  // 自适应显示所有标记点
+  if (markers.length > 1) {
+    const bounds = markers.map(p => [p.latitude, p.longitude]);
+    map.fitBounds(bounds, { padding: [30, 30] });
+  }
+
+  // 存储 map 实例，避免重复初始化
+  mapEl._leafletMap = map;
 }
 </script>
 </body>

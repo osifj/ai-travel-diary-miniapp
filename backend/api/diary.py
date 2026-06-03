@@ -197,6 +197,9 @@ async def read_diary(diary_id: int):
                     else None
                 ),
                 "address": p.get("address"),
+                "latitude": p.get("latitude"),
+                "longitude": p.get("longitude"),
+                "has_gps": bool(p.get("has_gps")),
                 "time_source": p.get("time_source"),
                 "location_source": p.get("location_source"),
                 "scene_type": p.get("ai_scene_type"),
