@@ -368,7 +368,7 @@ function renderAnalyzeResults() {
         <span class="meta">
           📍 ${loc.city || loc.country || '未知'} ${loc.place_name||''} &nbsp;
           🎯 ${ai.scene_type||'?'} &nbsp; 🏃 ${ai.activity||'?'} &nbsp;
-          😊 ${ai.mood||'?'} &nbsp; 📊 ${ai.confidence||'?'}
+          💡 ${ai.fun_fact||''} &nbsp; 📊 ${ai.confidence||'?'}
         </span>
         ${foods ? `<br><span class="meta">🍽️ ${foods}</span>` : ''}
         ${objs ? `<br><span class="meta">📦 ${objs}</span>` : ''}
@@ -435,6 +435,16 @@ function renderDiaryResult() {
     <div class="diary-content">${contentHtml}</div>
 
     <div class="section-divider"></div>
+    <div class="card-title">✏️ 补充你的回忆</div>
+    <textarea id="userNotes" rows="4" placeholder="例如：中午在尖沙咀的华嫂冰室吃了菠萝油和奶茶，下午去了星光大道散步，晚上在庙街夜市逛了一圈..." style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;resize:vertical"></textarea>
+    <button class="btn btn-primary" onclick="refineDiary()" style="margin-top:8px">🔄 重新整合日记</button>
+    <div id="refineProgress" class="hidden" style="text-align:center;padding:12px 0">
+      <div class="spinner"></div>
+      <p style="color:var(--sub);font-size:13px">DeepSeek 正在整合你的补充内容...</p>
+    </div>
+    <div id="refineResult" class="hidden" style="margin-top:8px"></div>
+
+    <div class="section-divider"></div>
     <div class="card-title">🖼️ 照片详情</div>
     ${(d.photo_summaries || []).map((p, i) => `
       <div class="photo-row">
@@ -444,7 +454,7 @@ function renderDiaryResult() {
             ${p.taken_time || ''} ${p.city ? '📍'+p.city : ''}
             &nbsp;<span class="tag">${p.scene_type || '?'}</span>
             <span class="tag">${p.activity || '?'}</span>
-            <span class="tag">${p.mood || '?'}</span>
+            <span class="tag green">${p.fun_fact || ''}</span>
           </span>
           ${p.diary_sentence ? `<br><span>${p.diary_sentence}</span>` : ''}
         </div>
@@ -452,6 +462,46 @@ function renderDiaryResult() {
     `).join('')}
   `;
   el('step-result').scrollIntoView({ behavior: 'smooth' });
+}
+
+async function refineDiary() {
+  const notes = document.getElementById('userNotes').value.trim();
+  if (!notes) { alert('请先输入你的补充内容'); return; }
+  if (!state.diaryResult || !state.diaryResult.diary_id) { alert('请先生成日记'); return; }
+
+  const progress = document.getElementById('refineProgress');
+  const result = document.getElementById('refineResult');
+  progress.classList.remove('hidden');
+  result.classList.add('hidden');
+
+  try {
+    const res = await fetch(`/diary/${state.diaryResult.diary_id}/refine`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_notes: notes }),
+    });
+    const data = await res.json();
+    progress.classList.add('hidden');
+    if (data.success) {
+      // 更新页面上的日记内容
+      state.diaryResult.content = data.content;
+      state.diaryResult.title = data.title;
+      state.diaryResult.keywords = data.keywords;
+      state.diaryResult.place_intro = data.place_intro;
+      state.diaryResult.generator = data.generator;
+      renderDiaryResult();
+      result.classList.remove('hidden');
+      result.innerHTML = '<p class="success-text">✅ 日记已更新</p>';
+      document.getElementById('userNotes').value = '';
+    } else {
+      result.classList.remove('hidden');
+      result.innerHTML = `<p class="error">整合失败: ${data.detail || '未知错误'}</p>`;
+    }
+  } catch (err) {
+    progress.classList.add('hidden');
+    result.classList.remove('hidden');
+    result.innerHTML = `<p class="error">请求失败: ${err.message}</p>`;
+  }
 }
 </script>
 </body>

@@ -12,7 +12,8 @@ from pydantic import BaseModel
 from typing import Optional
 
 from models.database import (
-    get_photos_by_ids, insert_diary, get_diary, get_diaries_by_user
+    get_photos_by_ids, insert_diary, get_diary, get_diaries_by_user,
+    update_diary_refined,
 )
 from services.diary_generator import generate_diary
 from services.weather_service import get_weather_summary
@@ -101,7 +102,7 @@ async def create_diary(request: GenerateDiaryRequest):
             "food": p.get("ai_food", []),
             "objects": p.get("ai_objects", []),
             "landmark_or_place_hint": p.get("ai_landmark_hint"),
-            "mood": p.get("ai_mood"),
+            "fun_fact": p.get("ai_fun_fact"),
             "confidence": p.get("ai_confidence"),
             "diary_sentence": p.get("diary_sentence"),
             "error_message": p.get("error_message"),
@@ -228,6 +229,64 @@ def _build_weather_data(photo_data: list[dict]) -> dict:
                 city=photo.get("city"),
             )
     return get_weather_summary(None, None, None)
+
+
+@router.post("/{diary_id}/refine")
+async def refine_diary(diary_id: int, body: dict):
+    """
+    用户补充内容后重新整合日记。
+
+    请求体: {"user_notes": "用户的补充内容文本"}
+    """
+    user_notes = (body or {}).get("user_notes", "")
+    if not user_notes or not user_notes.strip():
+        raise HTTPException(status_code=400, detail="user_notes 不能为空")
+
+    diary = get_diary(diary_id)
+    if not diary:
+        raise HTTPException(status_code=404, detail=f"日志 {diary_id} 不存在")
+
+    if not deepseek_is_configured():
+        raise HTTPException(status_code=503, detail="DeepSeek 未配置，无法进行日记整合")
+
+    from services.deepseek_client import refine_diary_with_user_notes
+
+    try:
+        refined = refine_diary_with_user_notes(diary, user_notes.strip())
+    except Exception as e:
+        logger.error(f"Refine diary failed: {e}")
+        raise HTTPException(status_code=500, detail=f"日记整合失败: {e}")
+
+    # 保留原日记中的客观字段
+    content = refined.get("content") or diary.get("content")
+    title = refined.get("title") or diary.get("title")
+    keywords = refined.get("keywords") or diary.get("keywords")
+    if isinstance(keywords, str):
+        try: keywords = json.loads(keywords)
+        except Exception: keywords = []
+
+    # 保存精修结果
+    from models.database import update_diary_refined
+    import json as _json
+    try:
+        update_diary_refined(
+            diary_id=diary_id,
+            user_notes=user_notes.strip(),
+            refined_content=content,
+        )
+    except Exception as e:
+        logger.warning(f"Failed to save refined diary: {e}")
+
+    return {
+        "success": True,
+        "diary_id": diary_id,
+        "title": title,
+        "content": content,
+        "keywords": keywords,
+        "weather_summary": refined.get("weather_summary") or diary.get("weather_summary"),
+        "place_intro": refined.get("place_intro") or diary.get("place_intro"),
+        "generator": "deepseek-refined",
+    }
 
 
 def _normalize_rich_diary(

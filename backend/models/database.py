@@ -126,6 +126,7 @@ def _ensure_photo_columns(cursor: sqlite3.Cursor):
         "client_place_name": "TEXT",
         "time_source": "TEXT DEFAULT 'unknown'",
         "location_source": "TEXT DEFAULT 'unknown'",
+        "ai_fun_fact": "TEXT",
     }
     for name, definition in columns.items():
         if name not in existing:
@@ -140,6 +141,8 @@ def _ensure_diary_columns(cursor: sqlite3.Cursor):
         "weather_summary": "TEXT",
         "place_intro": "TEXT",
         "generator": "TEXT DEFAULT 'template'",
+        "user_notes": "TEXT",
+        "refined_content": "TEXT",
     }
     for name, definition in columns.items():
         if name not in existing:
@@ -289,7 +292,7 @@ def update_photo_ai_result(
     food: Optional[list] = None,
     objects: Optional[list] = None,
     landmark_hint: Optional[str] = None,
-    mood: Optional[str] = None,
+    fun_fact: Optional[str] = None,
     confidence: Optional[str] = None,
     summary: Optional[str] = None,
     diary_sentence: Optional[str] = None,
@@ -302,14 +305,14 @@ def update_photo_ai_result(
         """UPDATE photos SET
             ai_scene_type = ?, ai_activity = ?,
             ai_food = ?, ai_objects = ?,
-            ai_landmark_hint = ?, ai_mood = ?, ai_confidence = ?,
+            ai_landmark_hint = ?, ai_fun_fact = ?, ai_confidence = ?,
             ai_summary = ?, diary_sentence = ?,
             status = ?, error_message = ?
            WHERE id = ?""",
         (scene_type, activity,
          json.dumps(food or [], ensure_ascii=False),
          json.dumps(objects or [], ensure_ascii=False),
-         landmark_hint, mood, confidence,
+         landmark_hint, fun_fact, confidence,
          summary, diary_sentence,
          status, error_message,
          photo_id)
@@ -407,6 +410,23 @@ def get_diary(diary_id: int) -> Optional[dict]:
             except json.JSONDecodeError:
                 pass
     return d
+
+
+def update_diary_refined(
+    diary_id: int,
+    user_notes: str,
+    refined_content: str,
+):
+    """更新日记的用户补充和精修内容."""
+    conn = get_connection()
+    conn.execute(
+        """UPDATE diaries SET
+            user_notes = ?, refined_content = ?
+           WHERE id = ?""",
+        (user_notes, refined_content, diary_id)
+    )
+    conn.commit()
+    conn.close()
 
 
 def get_diaries_by_user(user_id: str = "default", limit: int = 20) -> list[dict]:
