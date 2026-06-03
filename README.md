@@ -168,6 +168,69 @@ GEOCODER_API_KEY=             # 使用真实 API 时需要
 
 ---
 
+## 🌍 公网访问（朋友手机也能用）
+
+让不在同一 Wi-Fi 的朋友也能使用你的 AI 游玩日志系统。Mac 做服务器，ngrok 做公网穿透。
+
+### 适用场景
+
+- 几个朋友/测试用户想体验
+- Mac 可以一直开着
+- 暂时不想买云服务器
+
+### 启动步骤
+
+**方式一：一键启动（推荐）**
+
+双击项目根目录的 `start_all.command`，自动启动后端 + ngrok 公网穿透 + 防 Mac 睡眠。
+
+```bash
+# 双击即可，或者终端执行:
+./start_all.command
+```
+
+启动成功后终端会显示公网地址，例如：
+
+```
+🌍 公网: https://xxxx.ngrok-free.app
+📱 把公网地址发给朋友，手机浏览器打开即可使用
+```
+
+**方式二：手动启动**
+
+```bash
+# 终端 1：启动后端
+cd backend
+uvicorn app:app --host 0.0.0.0 --port 8000
+
+# 终端 2：启动 ngrok（需先 brew install ngrok）
+ngrok http 8000
+
+# 终端 3（可选）：防止 Mac 睡眠
+caffeinate -dimsu
+```
+
+### 验证
+
+```bash
+# 本地
+curl http://127.0.0.1:8000/health
+
+# 公网（替换成你的 ngrok 地址）
+curl https://xxxx.ngrok-free.app/health
+
+# 两个都返回 {"status":"ok"} 即成功
+```
+
+### 注意事项
+
+- ngrok 免费版每次重启域名会变，需把新地址发给朋友
+- 如需固定域名：注册 ngrok 免费账号 → `ngrok config add-authtoken <token>` → 获得 `xxx.ngrok-free.app` 固定地址
+- Mac 合上盖子可能睡眠 → 用 `caffeinate -dimsu` 或系统设置关闭睡眠
+- 正式上线需要自己的域名 + HTTPS 服务器
+
+---
+
 ## 🔒 隐私说明
 
 - 原图 (含 EXIF/GPS 元数据) **仅存储在服务器本地**
