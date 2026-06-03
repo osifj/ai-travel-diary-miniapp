@@ -14,7 +14,7 @@ from typing import Optional
 
 from models.database import (
     get_photos_by_ids, insert_diary, get_diary, get_diaries_by_user,
-    update_diary_refined,
+    update_diary_refined, delete_diary, search_diaries,
 )
 from services.diary_generator import generate_diary
 from services.weather_service import get_weather_summary
@@ -214,10 +214,23 @@ async def read_diary(diary_id: int):
     }
 
 
+@router.delete("/{diary_id}")
+async def remove_diary(diary_id: int):
+    """删除一篇日记."""
+    ok = delete_diary(diary_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail=f"日志 {diary_id} 不存在")
+    return {"success": True, "message": "已删除"}
+
+
 @router.get("/")
-async def list_diaries(user_id: str = "default", limit: int = 20):
-    """获取用户的所有日志列表."""
-    diaries = get_diaries_by_user(user_id=user_id, limit=min(limit, 50))
+async def list_diaries(user_id: str = "default", limit: int = 20, q: str = ""):
+    """获取用户的所有日志列表，支持搜索."""
+    q = (q or "").strip()
+    if q:
+        diaries = search_diaries(user_id=user_id, query=q, limit=min(limit, 50))
+    else:
+        diaries = get_diaries_by_user(user_id=user_id, limit=min(limit, 50))
     return {
         "success": True,
         "count": len(diaries),
@@ -293,6 +306,38 @@ async def refine_diary(diary_id: int, body: dict):
         "weather_summary": refined.get("weather_summary") or diary.get("weather_summary"),
         "place_intro": refined.get("place_intro") or diary.get("place_intro"),
         "generator": "deepseek-refined",
+    }
+
+
+@router.post("/{diary_id}/restyle")
+async def restyle_diary(diary_id: int, body: dict):
+    """
+    换风格重新生成日记。
+
+    请求体: {"style": "轻松" | "正式" | "简短" | "科普"}
+    """
+    style = (body or {}).get("style", "轻松")
+    diary = get_diary(diary_id)
+    if not diary:
+        raise HTTPException(status_code=404, detail=f"日志 {diary_id} 不存在")
+    if not deepseek_is_configured():
+        raise HTTPException(status_code=503, detail="DeepSeek 未配置")
+
+    from services.deepseek_client import restyle_diary
+
+    try:
+        result = restyle_diary(diary, style)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"重新生成失败: {e}")
+
+    return {
+        "success": True,
+        "diary_id": diary_id,
+        "title": result.get("title") or diary.get("title"),
+        "content": result.get("content"),
+        "keywords": result.get("keywords") or diary.get("keywords"),
+        "style": style,
+        "generator": "deepseek-restyled",
     }
 
 

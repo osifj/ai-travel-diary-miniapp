@@ -431,6 +431,38 @@ def update_diary_refined(
     conn.close()
 
 
+def delete_diary(diary_id: int) -> bool:
+    """删除一篇日记。返回是否成功。"""
+    conn = get_connection()
+    cursor = conn.execute("DELETE FROM diaries WHERE id = ?", (diary_id,))
+    conn.commit()
+    deleted = cursor.rowcount > 0
+    conn.close()
+    return deleted
+
+
+def search_diaries(user_id: str, query: str, limit: int = 50) -> list[dict]:
+    """按关键词搜索日记（标题/内容/关键词）。"""
+    conn = get_connection()
+    like = f"%{query}%"
+    rows = conn.execute(
+        """SELECT * FROM diaries WHERE user_id = ?
+           AND (title LIKE ? OR content LIKE ? OR keywords LIKE ?)
+           ORDER BY created_at DESC LIMIT ?""",
+        (user_id, like, like, like, limit)
+    ).fetchall()
+    conn.close()
+    results = []
+    for row in rows:
+        d = dict(row)
+        for field in ('keywords', 'photo_ids'):
+            if d.get(field):
+                try: d[field] = json.loads(d[field])
+                except json.JSONDecodeError: pass
+        results.append(d)
+    return results
+
+
 def get_diaries_by_user(user_id: str = "default", limit: int = 20) -> list[dict]:
     """获取用户的所有日志."""
     conn = get_connection()

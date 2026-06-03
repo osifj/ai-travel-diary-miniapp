@@ -170,3 +170,27 @@ def refine_diary_with_user_notes(original_diary: dict, user_notes: str) -> dict:
         {"role": "system", "content": "你是中文旅行日记写作者。用户说辞永远优先于AI识别。善于整合用户回忆，为用户提到的食物和地点加入有趣科普，不编造，不写心情。"},
         {"role": "user", "content": prompt},
     ], temperature=0.6)
+
+
+def restyle_diary(diary: dict, style: str) -> dict:
+    """用指定风格重新生成日记."""
+    guides = {
+        "轻松": "用轻松幽默的口吻重写，加入俏皮比喻和日常感，不失真。",
+        "正式": "用正式优雅的文学语言重写，像旅行杂志文章，用词考究。",
+        "简短": "用最精炼语言重写，100字以内，保留时间地点活动和科普亮点。",
+        "科普": "以科普为主线重写，大幅扩展地点和食物/场景的文化科学知识。",
+    }
+    guide = guides.get(style, guides["轻松"])
+
+    prompt = f"""请按以下风格重写这篇旅行日记。
+
+原日记: {json.dumps(diary, ensure_ascii=False, indent=2)}
+风格: {guide}
+
+输出 JSON: {{"title":"标题","content":"正文","keywords":["关键词"]}}
+保留所有事实，不编造，不写心情。"""
+
+    return _chat_json([
+        {"role": "system", "content": f"中文旅行日记写作者。风格：{style}。"},
+        {"role": "user", "content": prompt},
+    ], temperature=0.7)

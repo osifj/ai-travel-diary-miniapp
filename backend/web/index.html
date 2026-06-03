@@ -184,11 +184,43 @@
   textarea:focus { border-color: var(--p2); }
   .empty-state { text-align: center; padding: 60px 20px; color: var(--s); }
 
+  /* 暗色模式 */
+  @media (prefers-color-scheme: dark) {
+    body.dark-auto { --bg: #1a1a2e; --c: #16213e; --t: #e0e0e0; --s: #999; --l: #333; }
+    body.dark-auto .card { box-shadow: 0 1px 6px rgba(0,0,0,0.3); }
+    body.dark-auto input, body.dark-auto textarea { background: #0f3460; color: #e0e0e0; border-color: #333; }
+    body.dark-auto .nav-btn { background: #2a2a4a; color: #999; }
+    body.dark-auto .nav-btn.active { background: var(--p); color: #fff; }
+    body.dark-auto .tag { background: #1a3a5c; }
+    body.dark-auto .dc { color: #ccc; }
+    body.dark-auto .warn-box { background: #2a2a1a; color: #ccc; }
+    body.dark-auto .photo-row { border-color: #1a1a3a; }
+    body.dark-auto .btn-secondary { background: #16213e; color: #ccc; }
+  }
+  body.dark-on { --bg: #1a1a2e; --c: #16213e; --t: #e0e0e0; --s: #999; --l: #333; }
+  body.dark-on .card { box-shadow: 0 1px 6px rgba(0,0,0,0.3); }
+  body.dark-on input, body.dark-on textarea { background: #0f3460; color: #e0e0e0; border-color: #333; }
+  body.dark-on .nav-btn { background: #2a2a4a; color: #999; }
+  body.dark-on .nav-btn.active { background: var(--p); color: #fff; }
+  body.dark-on .tag { background: #1a3a5c; }
+  body.dark-on .dc { color: #ccc; }
+  body.dark-on .warn-box { background: #2a2a1a; color: #ccc; }
+  body.dark-on .photo-row { border-color: #1a1a3a; }
+  body.dark-on .btn-secondary { background: #16213e; color: #ccc; }
+  .dark-btn { font-size: 16px; padding: 4px 6px; border-radius: 6px; background: none; border: none; cursor: pointer; }
+
   .spinner {
     width: 28px; height: 28px; border: 3px solid var(--l);
     border-top-color: var(--p); border-radius: 50%; animation: spin 0.7s linear infinite; margin: 8px auto;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+  .del-btn { position: absolute; top: 8px; right: 8px; font-size: 16px; padding: 4px 6px; border-radius: 6px; background: rgba(0,0,0,0.08); border: none; cursor: pointer; opacity: 0.6; }
+  .del-btn:active { opacity: 1; background: rgba(220,53,69,0.2); }
+  .action-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .action-row button { flex: 1; min-width: 60px; padding: 8px 6px; border-radius: 8px; border: 1px solid var(--l); background: var(--c); color: var(--t); font-size: 12px; cursor: pointer; }
+  .action-row button:active { background: var(--p); color: #fff; }
+  .toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 10px 20px; border-radius: 20px; font-size: 14px; z-index: 999; animation: fadeIn 0.3s; }
+  @keyframes fadeIn { from { opacity:0; transform:translateX(-50%) translateY(-10px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
 </style>
 </head>
 <body>
@@ -196,10 +228,12 @@
 <div id="toast" class="toast"></div>
 
 <div class="nav">
-  <input type="text" id="nicknameInput" placeholder="你的昵称" maxlength="20">
+  <input type="text" id="nicknameInput" placeholder="昵称" maxlength="20" style="max-width:80px">
+  <input type="search" id="searchInput" placeholder="搜索日记..." style="display:none;flex:1;min-width:100px" oninput="loadHistory()">
   <div class="nav-tabs">
     <button class="nav-tab on" id="btnNew" onclick="switchView('new')">🆕</button>
     <button class="nav-tab" id="btnHistory" onclick="switchView('history')">📚</button>
+    <button class="dark-btn" id="btnDark" onclick="toggleDark()" title="暗色模式">🌙</button>
   </div>
 </div>
 
@@ -275,7 +309,21 @@ function switchView(v) {
   document.getElementById('view-history').classList.toggle('hidden', v !== 'history');
   document.getElementById('btnNew').classList.toggle('on', v === 'new');
   document.getElementById('btnHistory').classList.toggle('on', v === 'history');
+  document.getElementById('searchInput').style.display = v === 'history' ? '' : 'none';
   if (v === 'history') loadHistory();
+}
+
+// 暗色模式
+(function(){
+  const s = localStorage.getItem('td_dark');
+  if (s === 'on') document.body.className = 'dark-on';
+  else if (s !== 'off') document.body.className = 'dark-auto';
+})();
+function toggleDark() {
+  const b = document.body, btn = document.getElementById('btnDark');
+  if (b.classList.contains('dark-on')) { b.className = 'dark-auto'; localStorage.setItem('td_dark','auto'); btn.textContent='🌙'; }
+  else if (b.classList.contains('dark-auto')) { b.className = ''; localStorage.setItem('td_dark','off'); btn.textContent='☀️'; }
+  else { b.className = 'dark-on'; localStorage.setItem('td_dark','on'); btn.textContent='🌙'; }
 }
 
 // ===== 状态 =====
@@ -398,6 +446,13 @@ function renderDiaryResult() {
   el('step-result').classList.remove('hidden');
   el('step-result').innerHTML = `
     <div class="card-title">📖 ${d.title||''}</div>
+    <div class="action-row">
+      <button onclick="restyleDiary('轻松')">😄 轻松版</button>
+      <button onclick="restyleDiary('正式')">📰 正式版</button>
+      <button onclick="restyleDiary('简短')">⚡ 简短版</button>
+      <button onclick="restyleDiary('科普')">🔬 科普版</button>
+      <button onclick="exportMD()">📥 导出</button>
+    </div>
     <p style="font-size:13px;color:var(--s);margin-bottom:10px">📅${d.date||'?'} · 📍${d.city||'未知'} · 📷${d.photo_count||0}张</p>
     <div style="margin-bottom:10px">${(d.keywords||[]).map(k=>`<span class="tag">${k}</span>`).join('')}</div>
     ${d.weather_summary?`<div class="info-box weather">🌤️ ${d.weather_summary}</div>`:''}
@@ -432,24 +487,38 @@ async function refineDiary() {
 // ===== 历史记录 =====
 async function loadHistory() {
   const uid = nickname||'default';
+  const q = document.getElementById('searchInput').value.trim();
   el('historyDetail').classList.add('hidden'); el('historyDetail').innerHTML='';
   el('historyList').innerHTML = '<div style="text-align:center;padding:40px"><div class="spinner"></div></div>';
   try {
-    const r=await fetch(`/diary/?user_id=${encodeURIComponent(uid)}&limit=50`);
+    const url = q
+      ? `/diary/?user_id=${encodeURIComponent(uid)}&limit=50&q=${encodeURIComponent(q)}`
+      : `/diary/?user_id=${encodeURIComponent(uid)}&limit=50`;
+    const r=await fetch(url);
     const d=await r.json();
     if(!d.success||!d.diaries.length){ el('historyList').innerHTML='<div class="empty-state">📭<br>还没有日记记录</div>'; return; }
-    el('historyList').innerHTML = d.diaries.map(di => {
-      const pid = (di.photo_ids||[])[0];
-      return `<div class="diary-card" onclick="showDiaryDetail(${di.id})">
+    el('historyList').innerHTML = d.diaries.map(di => `
+      <div class="diary-card" style="position:relative" onclick="showDiaryDetail(${di.id})">
         <div class="diary-card-body">
           <div class="diary-card-title">${di.title}</div>
           <div class="diary-card-meta">📅${di.date} · 📍${di.city||'未知'} · 📷${(di.photo_ids||[]).length}张</div>
-          <div class="diary-card-preview">${(di.content||'').slice(0,120)}...</div>
-          <div style="margin-top:6px">${(di.keywords||[]).slice(0,4).map(k=>`<span class="tag">${k}</span>`).join('')}</div>
+          <div class="diary-card-preview">${(di.content||'').slice(0,100)}...</div>
+          <div style="margin-top:4px">${(di.keywords||[]).slice(0,4).map(k=>`<span class="tag">${k}</span>`).join('')}</div>
         </div>
-      </div>`;
-    }).join('');
+        <button class="del-btn" onclick="event.stopPropagation();deleteDiary(${di.id})" title="删除">🗑️</button>
+      </div>
+    `).join('');
   } catch(err){ el('historyList').innerHTML=`<p class="text-error">${err.message}</p>`; }
+}
+
+async function deleteDiary(id) {
+  if (!confirm('确定删除这篇日记吗？')) return;
+  try {
+    const r = await fetch(`/diary/${id}`, { method: 'DELETE' });
+    const d = await r.json();
+    if (d.success) { showToast('已删除'); loadHistory(); }
+    else showToast(d.detail || '删除失败');
+  } catch (err) { showToast(err.message); }
 }
 
 async function showDiaryDetail(id) {
@@ -495,6 +564,51 @@ function _renderMap(mapId, photos) {
 }
 function initMap() { _renderMap('map', state.diaryPhotos); }
 function initMapDetail() { _renderMap('mapDetail', state.diaryPhotos); }
+
+function showToast(msg, type) {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  if (type === 'success') t.style.background = '#28a745';
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2000);
+}
+
+async function restyleDiary(style) {
+  if (!state.diaryResult || !state.diaryResult.diary_id) return;
+  const btns = document.querySelectorAll('.action-row button');
+  btns.forEach(b => b.disabled = true);
+  try {
+    const r = await fetch(`/diary/${state.diaryResult.diary_id}/restyle`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({style}) });
+    const d = await r.json();
+    if (d.success) {
+      state.diaryResult.content = d.content;
+      state.diaryResult.title = d.title;
+      state.diaryResult.keywords = d.keywords;
+      renderDiaryResult(); setTimeout(initMap, 200);
+      showToast('已切换为' + style + '风格', 'success');
+    } else showToast(d.detail || '切换失败');
+  } catch (err) { showToast(err.message); }
+  btns.forEach(b => b.disabled = false);
+}
+
+function exportMD() {
+  const d = state.diaryResult;
+  if (!d) return;
+  const lines = [
+    '# ' + d.title, '',
+    '> ' + d.date + ' · ' + (d.city||'未知') + ' · ' + (d.photo_count||0) + ' 张', '',
+    d.weather_summary ? '🌤️ ' + d.weather_summary + '\n' : '',
+    d.place_intro ? '📍 ' + d.place_intro + '\n' : '',
+    d.content, '',
+    '**关键词**: ' + (d.keywords||[]).join(' · '),
+  ];
+  const blob = new Blob([lines.join('\n')], { type: 'text/markdown' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (d.title || '游记') + '.md';
+  a.click(); showToast('已下载', 'success');
+}
 </script>
 </body>
 </html>
