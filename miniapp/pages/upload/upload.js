@@ -32,7 +32,7 @@ Page({
     hasLocation: false,
     locationText: '未选择地点',
     locationDetailText: '',
-    metadataTip: '可选：如果微信临时文件丢失 EXIF，会用这里的日期/地点兜底。',
+    metadataTip: '⚠️ iPhone 照片上传后 EXIF 会被微信剥离。请务必填写本次旅行的日期和地点，否则日记将无法显示时间和位置。',
   },
 
   formatSize(size) {
@@ -215,6 +215,32 @@ Page({
       wx.showToast({ title: '请先选择照片', icon: 'none' });
       return;
     }
+
+    // 上传前检查：如果没填日期和地点，弹确认框提醒用户
+    if (!this.data.hasTravelDate || !this.data.hasLocation) {
+      const missing = [];
+      if (!this.data.hasTravelDate) missing.push('旅行日期');
+      if (!this.data.hasLocation) missing.push('拍摄地点');
+      const that = this;
+      wx.showModal({
+        title: '缺少旅行信息',
+        content: `尚未填写${missing.join('和')}。\n\n微信临时文件通常不含 EXIF，建议先填写上方「旅行信息兜底」再上传。\n\n是否继续上传？`,
+        confirmText: '继续上传',
+        cancelText: '先去填写',
+        success(res) {
+          if (res.confirm) {
+            that._doUploadAll();
+          }
+          // 用户点取消 → 留在当前页，去填日期/地点
+        },
+      });
+      return;
+    }
+
+    this._doUploadAll();
+  },
+
+  async _doUploadAll() {
 
     this.setUploadData({
       isUploading: true,
