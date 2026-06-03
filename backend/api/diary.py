@@ -341,6 +341,73 @@ async def restyle_diary(diary_id: int, body: dict):
     }
 
 
+@router.post("/{diary_id}/chat")
+async def chat_about_diary(diary_id: int, body: dict):
+    """
+    多轮对话 — 与 AI 讨论日记修改。
+
+    请求体: {"messages": [{"role":"user","content":"..."}, ...], "diary_context": {...}}
+    返回: {"reply": "AI 回复文本"}
+    """
+    messages = (body or {}).get("messages", [])
+    diary_context = (body or {}).get("diary_context", {})
+
+    diary = get_diary(diary_id)
+    if not diary:
+        raise HTTPException(status_code=404, detail="日记不存在")
+    if not deepseek_is_configured():
+        raise HTTPException(status_code=503, detail="DeepSeek 未配置")
+
+    from services.deepseek_client import chat_about_diary as do_chat
+
+    try:
+        reply = do_chat(messages, diary_context)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"对话失败: {e}")
+
+    return {"success": True, "reply": reply}
+
+
+@router.post("/{diary_id}/integrate")
+async def integrate_chat(diary_id: int, body: dict):
+    """
+    把多轮对话内容整合进日记，替换原日记。
+
+    请求体: {"messages": [...]}
+    """
+    messages = (body or {}).get("messages", [])
+    if not messages:
+        raise HTTPException(status_code=400, detail="messages 不能为空")
+
+    diary = get_diary(diary_id)
+    if not diary:
+        raise HTTPException(status_code=404, detail="日记不存在")
+    if not deepseek_is_configured():
+        raise HTTPException(status_code=503, detail="DeepSeek 未配置")
+
+    from services.deepseek_client import integrate_chat_history as do_integrate
+
+    try:
+        result = do_integrate(diary, messages)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"整合失败: {e}")
+
+    content = result.get("content") or diary.get("content")
+    try:
+        update_diary_refined(diary_id, "通过对话整合", content)
+    except Exception as e:
+        logger.warning(f"Failed to save: {e}")
+
+    return {
+        "success": True,
+        "diary_id": diary_id,
+        "title": result.get("title") or diary.get("title"),
+        "content": content,
+        "keywords": result.get("keywords") or diary.get("keywords"),
+        "generator": "deepseek-chat-integrated",
+    }
+
+
 def _normalize_rich_diary(
     rich_diary: dict,
     template_diary: dict,

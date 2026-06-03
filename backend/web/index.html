@@ -88,10 +88,12 @@
     font-size: 15px; font-weight: 600; cursor: pointer; margin-bottom: 8px;
     transition: transform 0.1s, opacity 0.2s; -webkit-tap-highlight-color: transparent;
   }
-  .btn:active { transform: scale(0.97); }
+  .btn:active { transform: scale(0.96); }
   .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
-  .btn-primary { background: var(--p); color: #fff; }
-  .btn-secondary { background: var(--card); color: var(--p); border: 2px solid var(--p); }
+  .btn-primary { background: var(--p); color: #fff; transition: background 0.15s, transform 0.1s; }
+  .btn-primary:active { background: #4A57A8; }
+  .btn-secondary { background: var(--card); color: var(--p); border: 2px solid var(--p); transition: background 0.15s, transform 0.1s; }
+  .btn-secondary:active { background: #EEF0FA; }
   .btn-small { width: auto; height: 36px; font-size: 13px; padding: 0 16px; border-radius: 10px; }
 
   /* 标签 */
@@ -186,25 +188,43 @@
 
   /* 暗色模式 */
   @media (prefers-color-scheme: dark) {
-    body.dark-auto { --bg: #1a1a2e; --card: #16213e; --t: #e0e0e0; --s: #999; --l: #333; }
-    body.dark-auto .card { box-shadow: 0 1px 6px rgba(0,0,0,0.3); }
-    body.dark-auto input, body.dark-auto textarea { background: #0f3460; color: #e0e0e0; border-color: #333; }
-    body.dark-auto .nav-tab { background: transparent; color: #999; }
+    body.dark-auto { --bg: #12122a; --card: #1a1a3e; --t: #f0f0f0; --s: #bbb; --l: #444; }
+    body.dark-auto .card { box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
+    body.dark-auto input, body.dark-auto textarea { background: #1e1e4a; color: #f0f0f0; border-color: #444; }
+    body.dark-auto .drop-zone { background: #16163a; border-color: #444; }
+    body.dark-auto .drop-zone:hover { background: #1a1a44; border-color: var(--p2); }
+    body.dark-auto .nav-tab { background: transparent; color: #bbb; }
     body.dark-auto .nav-tab.on { background: var(--p); color: #fff; }
-    body.dark-auto .tag { background: #1a3a5c; }
-    body.dark-auto .warn-box { background: #2a2a1a; color: #ccc; }
-    body.dark-auto .btn-secondary { background: #16213e; color: #ccc; }
-    body.dark-auto .action-row button { background: #16213e; color: #ccc; border-color: #333; }
+    body.dark-auto .tag { background: #1a3a6c; color: #aac; }
+    body.dark-auto .warn-box { background: #2a2a1a; color: #ddd; }
+    body.dark-auto .btn-secondary { background: #1e1e4a; color: #ddd; border-color: #555; }
+    body.dark-auto .btn-secondary:active { background: #2a2a5a; }
+    body.dark-auto .action-row button { background: #1e1e4a; color: #ddd; border-color: #444; }
+    body.dark-auto .action-row button:active { background: var(--p); }
+    body.dark-auto .diary-content { color: #eee; }
+    body.dark-auto .photo-row + .photo-row { border-color: #2a2a4a; }
+    body.dark-auto .section-div { border-color: #2a2a4a; }
+    body.dark-auto .info-box.weather { background: #1a1a40; color: #aab; }
+    body.dark-auto .info-box.place { background: #2a2a1a; color: #ccb; }
   }
-  body.dark-on { --bg: #1a1a2e; --card: #16213e; --t: #e0e0e0; --s: #999; --l: #333; }
-  body.dark-on .card { box-shadow: 0 1px 6px rgba(0,0,0,0.3); }
-  body.dark-on input, body.dark-on textarea { background: #0f3460; color: #e0e0e0; border-color: #333; }
-  body.dark-on .nav-tab { background: transparent; color: #999; }
+  body.dark-on { --bg: #12122a; --card: #1a1a3e; --t: #f0f0f0; --s: #bbb; --l: #444; }
+  body.dark-on .card { box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
+  body.dark-on input, body.dark-on textarea { background: #1e1e4a; color: #f0f0f0; border-color: #444; }
+  body.dark-on .drop-zone { background: #16163a; border-color: #444; }
+  body.dark-on .drop-zone:hover { background: #1a1a44; border-color: var(--p2); }
+  body.dark-on .nav-tab { background: transparent; color: #bbb; }
   body.dark-on .nav-tab.on { background: var(--p); color: #fff; }
-  body.dark-on .tag { background: #1a3a5c; }
-  body.dark-on .warn-box { background: #2a2a1a; color: #ccc; }
-  body.dark-on .btn-secondary { background: #16213e; color: #ccc; }
-  body.dark-on .action-row button { background: #16213e; color: #ccc; border-color: #333; }
+  body.dark-on .tag { background: #1a3a6c; color: #aac; }
+  body.dark-on .warn-box { background: #2a2a1a; color: #ddd; }
+  body.dark-on .btn-secondary { background: #1e1e4a; color: #ddd; border-color: #555; }
+  body.dark-on .btn-secondary:active { background: #2a2a5a; }
+  body.dark-on .action-row button { background: #1e1e4a; color: #ddd; border-color: #444; }
+  body.dark-on .action-row button:active { background: var(--p); }
+  body.dark-on .diary-content { color: #eee; }
+  body.dark-on .photo-row + .photo-row { border-color: #2a2a4a; }
+  body.dark-on .section-div { border-color: #2a2a4a; }
+  body.dark-on .info-box.weather { background: #1a1a40; color: #aab; }
+  body.dark-on .info-box.place { background: #2a2a1a; color: #ccb; }
   .dark-btn { font-size: 16px; padding: 4px 6px; border-radius: 6px; background: none; border: none; cursor: pointer; }
 
   .spinner {
@@ -219,6 +239,17 @@
   .action-row button:active { background: var(--p); color: #fff; }
   .toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 10px 20px; border-radius: 20px; font-size: 14px; z-index: 999; animation: fadeIn 0.3s; }
   @keyframes fadeIn { from { opacity:0; transform:translateX(-50%) translateY(-10px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
+
+  /* 聊天 */
+  .chat-area { max-height: 300px; overflow-y: auto; padding: 4px 0; }
+  .chat-msg { display: flex; margin-bottom: 10px; }
+  .chat-msg.user { justify-content: flex-end; }
+  .chat-msg.ai { justify-content: flex-start; }
+  .chat-bubble { max-width: 85%; padding: 10px 14px; border-radius: 16px; font-size: 14px; line-height: 1.5; word-break: break-word; }
+  .chat-msg.user .chat-bubble { background: var(--p); color: #fff; border-bottom-right-radius: 4px; }
+  .chat-msg.ai .chat-bubble { background: #F0F0F5; color: var(--t); border-bottom-left-radius: 4px; }
+  body.dark-on .chat-msg.ai .chat-bubble, body.dark-auto .chat-msg.ai .chat-bubble { background: #2a2a4a; color: #eee; }
+  .chat-typing { padding: 8px 14px; font-size: 13px; color: var(--s); }
 </style>
 </head>
 <body>
@@ -325,7 +356,7 @@ function toggleDark() {
 }
 
 // ===== 状态 =====
-const state = { files:[], photoIds:[], uploadResults:[], analyzeResults:[], diaryResult:null, diaryPhotos:[] };
+const state = { files:[], photoIds:[], uploadResults:[], analyzeResults:[], diaryResult:null, diaryPhotos:[], chatMessages:[] };
 const el = id => document.getElementById(id);
 
 // ===== 文件 =====
@@ -459,8 +490,13 @@ function renderDiaryResult() {
     <div class="diary-content">${ps.map(p=>`<p>${p}</p>`).join('')}</div>
     <div class="section-div"></div>
     <div class="card-title" style="font-size:14px">✏️ 补充回忆</div>
-    <textarea id="userNotes" rows="3" placeholder="例如：中午在尖沙咀华嫂冰室吃了菠萝油..."></textarea>
-    <button class="btn btn-primary" onclick="refineDiary()" style="margin-top:8px">🔄 重新整合</button>
+    <div id="chatMessages" class="chat-area"></div>
+    <div style="display:flex;gap:6px;margin-top:8px">
+      <input type="text" id="chatInput" placeholder="和 AI 讨论修改日记..." style="flex:1;height:44px;padding:0 14px;border:1.5px solid var(--l);border-radius:22px;font-size:14px;outline:none" onkeydown="if(event.key==='Enter')sendChat()">
+      <button class="btn btn-primary" onclick="sendChat()" style="width:auto;height:44px;padding:0 18px;flex-shrink:0">发送</button>
+    </div>
+    <button class="btn btn-primary" id="btnIntegrate" onclick="integrateDiary()" style="margin-top:8px;display:none">✅ 整合进日记</button>
+    <div id="chatProgress" class="hidden" style="text-align:center;padding:4px"><div class="dot-pulse"><span></span><span></span><span></span></div></div>
     <div id="refineProgress" class="hidden"><div class="spinner"></div></div>
     <div id="refineResult" class="hidden" style="margin-top:8px"></div>
     <div class="section-div"></div>
@@ -470,16 +506,80 @@ function renderDiaryResult() {
   el('step-result').scrollIntoView({behavior:'smooth'});
 }
 
-async function refineDiary() {
-  const notes = el('userNotes').value.trim(); if(!notes){toast('请先输入内容','error');return;}
-  el('refineProgress').classList.remove('hidden');
+// ===== AI 对话 =====
+async function sendChat() {
+  const input = document.getElementById('chatInput');
+  const msg = input.value.trim();
+  if (!msg) return;
+  if (!state.diaryResult?.diary_id) { toast('请先生成日记', 'error'); return; }
+
+  state.chatMessages.push({ role: 'user', content: msg });
+  input.value = '';
+  renderChat();
+  document.getElementById('chatProgress').classList.remove('hidden');
+
   try {
-    const r=await fetch(`/diary/${state.diaryResult.diary_id}/refine`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_notes:notes})});
-    const d=await r.json();
-    if(d.success){ state.diaryResult.content=d.content;state.diaryResult.title=d.title;state.diaryResult.keywords=d.keywords;state.diaryResult.place_intro=d.place_intro;renderDiaryResult();setTimeout(initMap,200);toast('日记已更新','success');el('userNotes').value=''; }
-    else toast(d.detail||'失败','error');
-  } catch(err){toast(err.message,'error');}
-  el('refineProgress').classList.add('hidden');
+    const diaryCtx = {
+      title: state.diaryResult.title,
+      date: state.diaryResult.date,
+      city: state.diaryResult.city,
+      content_preview: (state.diaryResult.content || '').slice(0, 300),
+      keywords: state.diaryResult.keywords,
+    };
+    const r = await fetch(`/diary/${state.diaryResult.diary_id}/chat`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: state.chatMessages, diary_context: diaryCtx }),
+    });
+    const d = await r.json();
+    if (d.success) {
+      state.chatMessages.push({ role: 'assistant', content: d.reply });
+      if (d.reply.indexOf('✅ 我已准备好整合日记') !== -1) {
+        document.getElementById('btnIntegrate').style.display = '';
+      }
+    } else {
+      state.chatMessages.push({ role: 'assistant', content: '出错：' + (d.detail || '') });
+    }
+  } catch (err) {
+    state.chatMessages.push({ role: 'assistant', content: '网络错误：' + err.message });
+  }
+  document.getElementById('chatProgress').classList.add('hidden');
+  renderChat();
+}
+
+async function integrateDiary() {
+  if (!state.diaryResult?.diary_id) return;
+  const btn = document.getElementById('btnIntegrate');
+  btn.disabled = true; btn.textContent = '整合中...';
+  try {
+    const r = await fetch(`/diary/${state.diaryResult.diary_id}/integrate`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: state.chatMessages }),
+    });
+    const d = await r.json();
+    if (d.success) {
+      state.diaryResult.content = d.content;
+      state.diaryResult.title = d.title;
+      state.diaryResult.keywords = d.keywords;
+      renderDiaryResult(); setTimeout(initMap, 200);
+      toast('日记已更新', 'success');
+      state.chatMessages = [];
+      renderChat();
+      btn.style.display = 'none';
+    } else {
+      toast(d.detail || '整合失败', 'error');
+    }
+  } catch (err) { toast(err.message, 'error'); }
+  btn.disabled = false; btn.textContent = '✅ 整合进日记';
+}
+
+function renderChat() {
+  const area = document.getElementById('chatMessages');
+  area.innerHTML = state.chatMessages.map(m =>
+    '<div class="chat-msg ' + (m.role === 'user' ? 'user' : 'ai') + '">' +
+    '<div class="chat-bubble">' + m.content.replace(/\n/g, '<br>') + '</div></div>'
+  ).join('');
+  area.scrollTop = area.scrollHeight;
+}
 }
 
 // ===== 历史记录 =====

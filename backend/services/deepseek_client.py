@@ -194,3 +194,79 @@ def restyle_diary(diary: dict, style: str) -> dict:
         {"role": "system", "content": f"中文旅行日记写作者。风格：{style}。"},
         {"role": "user", "content": prompt},
     ], temperature=0.7)
+
+
+def chat_about_diary(messages: list[dict], diary_context: dict) -> str:
+    """多轮对话 — 与用户讨论日记修改，不直接写入。返回 AI 回复文本。"""
+    ctx = json.dumps(diary_context, ensure_ascii=False, indent=2)
+    prompt = f"""你要帮助用户完善这篇旅行日记。你可以：
+
+1. 确认用户修改意见（"你是说xxx，对吗？"）
+2. 追问细节让日记更丰富（"在哪里吃的？有什么特色？"）
+3. 给出建议（"这个地点附近还有xxx，你想加进去吗？"）
+4. 补充科普（"说到火锅，深圳其实..."）
+5. 当用户表示满意或说"可以了/整合/就这样"，回复中必须包含「✅ 我已准备好整合日记」这句话，提示用户可以点整合按钮。
+
+这是当前日记的摘要上下文：
+{ctx}
+
+注意：
+- 用户说的为准，覆盖 AI 识别结果
+- 不要写心情/氛围标签
+- 不要编造事实
+- 用中文回复，自然、有帮助、像朋友聊天"""
+
+    msgs = [
+        {"role": "system", "content": prompt},
+        *messages[-20:],  # 最近 20 轮对话
+    ]
+    return _chat_text(msgs, temperature=0.7)
+
+
+def _chat_text(messages: list[dict], temperature: float = 0.7) -> str:
+    """调用 DeepSeek 纯文本对话，返回文本。"""
+    if not is_configured(): raise ValueError("DEEPSEEK_API_KEY 未配置")
+    url = f"{DEEPSEEK_BASE_URL.rstrip('/')}/chat/completions"
+    payload = {
+        "model": DEEPSEEK_MODEL, "messages": messages,
+        "temperature": temperature,
+        "max_completion_tokens": DEEPSEEK_MAX_COMPLETION_TOKENS,
+        "stream": False,
+    }
+    headers = {"Authorization": f"Bearer {DEEPSEEK_API_KEY}", "Content-Type": "application/json"}
+    logger.info(f"Calling DeepSeek (text): {url}")
+    with httpx.Client(timeout=DEEPSEEK_TIMEOUT_SECONDS) as client:
+        resp = client.post(url, headers=headers, json=payload)
+        resp.raise_for_status()
+        data = resp.json()
+    choices = data.get("choices", [])
+    if not choices: raise RuntimeError("DeepSeek returned empty choices")
+    return choices[0].get("message", {}).get("content", "")
+
+
+def integrate_chat_history(original_diary: dict, messages: list[dict]) -> dict:
+    """把多轮对话内容整合进日记，生成最终版。"""
+    history_text = "\n".join([
+        f"{'用户' if m['role']=='user' else 'AI'}: {m['content'][:200]}"
+        for m in messages if m['role'] in ('user', 'assistant')
+    ])
+    prompt = f"""把以下对话中用户补充/修改的内容整合进旅行日记。
+
+原日记:
+{json.dumps(original_diary, ensure_ascii=False, indent=2)}
+
+对话历史:
+{history_text}
+
+输出 JSON: {{"title":"标题","content":"整合后日记正文","keywords":["关键词"],"place_intro":"地点介绍"}}
+
+规则:
+1. 用户说辞优先覆盖 AI 识别
+2. 用户提到的食物/地点加入科普
+3. 不编造、不写心情
+4. 保留天气和原日记中未被纠正的内容"""
+
+    return _chat_json([
+        {"role": "system", "content": "你是中文旅行日记整合者。用户说辞优先，善加科普。"},
+        {"role": "user", "content": prompt},
+    ], temperature=0.5)
