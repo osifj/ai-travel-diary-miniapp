@@ -532,9 +532,6 @@ function renderDiaryResult(targetId, mapId) {
   if (targetId === 'step-result') { setTimeout(() => { renderChat(); if (state.chatMessages.length) document.getElementById('btnIntegrate').style.display = ''; }, 100); }
   setTimeout(() => _renderMap(mapId, state.diaryPhotos), 200);
 }
-  `;
-  el('step-result').scrollIntoView({behavior:'smooth'});
-}
 
 // ===== AI 对话 =====
 async function sendChat() {
@@ -645,7 +642,6 @@ function renderChat() {
     '<div class="chat-bubble">' + m.content.replace(/\n/g, '<br>') + '</div></div>'
   ).join('');
   area.scrollTop = area.scrollHeight;
-}
 }
 
 // ===== 历史记录 =====
