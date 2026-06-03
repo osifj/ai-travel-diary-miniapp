@@ -256,6 +256,16 @@
 
 <div id="toast" class="toast"></div>
 
+<div id="nicknameGate" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center">
+  <div style="background:var(--card);border-radius:16px;padding:28px 24px;max-width:320px;width:90%;text-align:center">
+    <div style="font-size:40px;margin-bottom:8px">📸</div>
+    <div style="font-size:18px;font-weight:700;margin-bottom:4px">欢迎使用 AI 游玩日志</div>
+    <div style="font-size:13px;color:var(--s);margin-bottom:16px">请输入你的昵称，用于保存和查看你的历史记录</div>
+    <input type="text" id="nicknameGateInput" placeholder="你的昵称" maxlength="20" style="width:100%;height:44px;padding:0 14px;border:1.5px solid var(--l);border-radius:10px;font-size:15px;text-align:center;outline:none;margin-bottom:12px">
+    <button class="btn btn-primary" onclick="confirmNickname()" style="width:100%">开始使用</button>
+  </div>
+</div>
+
 <div class="nav">
   <input type="text" id="nicknameInput" placeholder="昵称" maxlength="20" style="max-width:80px">
   <input type="search" id="searchInput" placeholder="搜索日记..." style="display:none;flex:1;min-width:100px" oninput="loadHistory()">
@@ -331,6 +341,20 @@ let nickname = localStorage.getItem('travel_diary_nickname') || '';
 const nickInput = document.getElementById('nicknameInput');
 nickInput.value = nickname;
 nickInput.addEventListener('change', () => { nickname = nickInput.value.trim(); localStorage.setItem('travel_diary_nickname', nickname); });
+
+// 昵称闸门
+const gate = document.getElementById('nicknameGate');
+if (nickname) { gate.style.display = 'none'; }
+function confirmNickname() {
+  const v = document.getElementById('nicknameGateInput').value.trim();
+  if (!v) { toast('请输入昵称', 'error'); return; }
+  nickname = v;
+  localStorage.setItem('travel_diary_nickname', nickname);
+  nickInput.value = nickname;
+  gate.style.display = 'none';
+  toast('欢迎，' + nickname, 'success');
+  loadHistory();
+}
 
 // ===== 视图切换 =====
 function switchView(v) {
@@ -468,12 +492,15 @@ el('btnDiary').addEventListener('click', async () => {
   renderDiaryResult(); setTimeout(initMap, 200);
 });
 
-function renderDiaryResult() {
+function renderDiaryResult(targetId, mapId) {
+  targetId = targetId || 'step-result';
+  mapId = mapId || 'map';
+  const target = document.getElementById(targetId);
   const d = state.diaryResult;
-  if (!d?.success) { el('step-result').classList.remove('hidden'); el('step-result').innerHTML='<p class="text-error">生成失败</p>'; return; }
+  if (!d?.success) { target.classList.remove('hidden'); target.innerHTML='<p class="text-error">生成失败</p>'; return; }
   const ps = (d.content||'').split('\n\n').filter(p=>p.trim());
-  el('step-result').classList.remove('hidden');
-  el('step-result').innerHTML = `
+  target.classList.remove('hidden');
+  target.innerHTML = `
     <div class="card-title">📖 ${d.title||''}</div>
     <div class="action-row">
       <button onclick="restyleDiary('轻松')">😄 轻松版</button>
@@ -486,10 +513,10 @@ function renderDiaryResult() {
     <div style="margin-bottom:10px">${(d.keywords||[]).map(k=>`<span class="tag">${k}</span>`).join('')}</div>
     ${d.weather_summary?`<div class="info-box weather">🌤️ ${d.weather_summary}</div>`:''}
     ${d.place_intro?`<div class="info-box place">📍 ${d.place_intro}</div>`:''}
-    <div id="map" class="map-container"></div>
+    <div id="${mapId}" class="map-container"></div>
     <div class="diary-content">${ps.map(p=>`<p>${p}</p>`).join('')}</div>
     <div class="section-div"></div>
-    <div class="card-title" style="font-size:14px">✏️ 补充回忆</div>
+    <div class="card-title" style="font-size:14px">💬 与 AI 讨论修改</div>
     <div id="chatMessages" class="chat-area"></div>
     <div style="display:flex;gap:6px;margin-top:8px">
       <input type="text" id="chatInput" placeholder="和 AI 讨论修改日记..." style="flex:1;height:44px;padding:0 14px;border:1.5px solid var(--l);border-radius:22px;font-size:14px;outline:none" onkeydown="if(event.key==='Enter')sendChat()">
@@ -497,11 +524,14 @@ function renderDiaryResult() {
     </div>
     <button class="btn btn-primary" id="btnIntegrate" onclick="integrateDiary()" style="margin-top:8px;display:none">✅ 整合进日记</button>
     <div id="chatProgress" class="hidden" style="text-align:center;padding:4px"><div class="dot-pulse"><span></span><span></span><span></span></div></div>
-    <div id="refineProgress" class="hidden"><div class="spinner"></div></div>
-    <div id="refineResult" class="hidden" style="margin-top:8px"></div>
     <div class="section-div"></div>
     <div class="card-title" style="font-size:14px">🖼️ 照片详情</div>
-    ${(d.photo_summaries||[]).map((p,i)=>`<div class="photo-row"><span class="photo-num">#${i+1}</span><div class="photo-info"><span class="meta">${p.taken_time||''} ${p.city?'📍'+p.city:''}</span> <span class="tag">${p.scene_type||'?'}</span> <span class="tag">${p.activity||'?'}</span>${p.diary_sentence?`<br>${p.diary_sentence}`:''}</div></div>`).join('')}
+    ${(d.photo_summaries||[]).map((p,i)=>`<div class="photo-row"><span class="photo-num">#${i+1}</span><div class="photo-info"><span class="meta">${p.taken_time||''} ${p.city?'📍'+p.city:''}</span> <span class="tag">${p.scene_type||'?'}</span> <span class="tag">${p.activity||'?'}</span>${p.diary_sentence?`<br>${p.diary_sentence}`:''}</div></div>`).join('')}`;
+
+  // 恢复聊天记录
+  if (targetId === 'step-result') { setTimeout(() => { renderChat(); if (state.chatMessages.length) document.getElementById('btnIntegrate').style.display = ''; }, 100); }
+  setTimeout(() => _renderMap(mapId, state.diaryPhotos), 200);
+}
   `;
   el('step-result').scrollIntoView({behavior:'smooth'});
 }
@@ -597,7 +627,8 @@ async function integrateDiary() {
       state.diaryResult.keywords = d.keywords;
       renderDiaryResult(); setTimeout(initMap, 200);
       toast('日记已更新', 'success');
-      state.chatMessages = [];
+      // 保留聊天记录，AI 可以继续对话
+      state.chatMessages.push({ role: 'assistant', content: '✅ 日记已更新！还有什么要修改的吗？' });
       renderChat();
       btn.style.display = 'none';
     } else {
@@ -662,22 +693,9 @@ async function showDiaryDetail(id) {
     if(!d.success){el('historyDetail').innerHTML='<p class="text-error">加载失败</p>';return;}
     const diary=d.diary, photos=d.photos||[];
     state.diaryResult=diary; state.diaryPhotos=photos;
-    const ps2=(diary.content||'').split('\n\n').filter(p=>p.trim());
-    el('historyDetail').innerHTML = `
-      <button class="btn btn-secondary btn-small" onclick="backToHistory()">← 返回</button>
-      <div class="card" style="margin-top:10px">
-        <div class="card-title">📖 ${diary.title}</div>
-        <p style="font-size:13px;color:var(--s);margin-bottom:8px">📅${diary.date} · 📍${diary.city||'未知'} · 📷${photos.length}张</p>
-        <div style="margin-bottom:8px">${(diary.keywords||[]).map(k=>`<span class="tag">${k}</span>`).join('')}</div>
-        ${diary.weather_summary?`<div class="info-box weather">🌤️ ${diary.weather_summary}</div>`:''}
-        ${diary.place_intro?`<div class="info-box place">📍 ${diary.place_intro}</div>`:''}
-        <div id="mapDetail" class="map-container"></div>
-        <div class="diary-content">${ps2.map(p=>`<p>${p}</p>`).join('')}</div>
-        <div class="section-div"></div>
-        <div class="card-title" style="font-size:14px">🖼️ 照片详情</div>
-        ${photos.map((p,i)=>`<div class="photo-row"><span class="photo-num">#${i+1}</span><div class="photo-info"><span class="meta">${p.taken_time||''} ${p.city?'📍'+p.city:''}</span> <span class="tag">${p.scene_type||'?'}</span>${p.diary_sentence?`<br>${p.diary_sentence}`:''}</div></div>`).join('')}
-      </div>`;
-    setTimeout(initMapDetail, 300);
+    state.chatMessages=[]; // 新打开时清空聊天
+    el('historyDetail').innerHTML = '<button class="btn btn-secondary btn-small" onclick="backToHistory()">← 返回</button><div class="card" style="margin-top:10px" id="historyCard"></div>';
+    renderDiaryResult('historyCard', 'mapDetail');
   } catch(err){ el('historyDetail').innerHTML=`<p class="text-error">${err.message}</p>`; }
 }
 
