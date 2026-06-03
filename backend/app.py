@@ -42,6 +42,46 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ---- JSON 响应清理中间件 ----
+import unicodedata
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
+import json as _json
+
+class SanitizeJSONMiddleware(BaseHTTPMiddleware):
+    """移除 JSON 响应中的非法控制字符，防止 JSON 解析失败."""
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        ct = response.headers.get("content-type", "")
+        if "application/json" in ct and hasattr(response, "body"):
+            try:
+                body = response.body
+                if isinstance(body, bytes):
+                    text = body.decode("utf-8", errors="replace")
+                    # 移除 JSON 不兼容字符
+                    cleaned = []
+                    for ch in text:
+                        cat = unicodedata.category(ch)
+                        if cat == 'Cc' and ch not in '\n\r\t':
+                            cleaned.append(' ')
+                        elif ch in ('\u2028', '\u2029', '\u0085'):
+                            cleaned.append(' ')
+                        else:
+                            cleaned.append(ch)
+                    cleaned_text = ''.join(cleaned)
+                    if cleaned_text != text:
+                        return Response(
+                            content=cleaned_text.encode("utf-8"),
+                            status_code=response.status_code,
+                            headers=dict(response.headers),
+                            media_type="application/json",
+                        )
+            except Exception:
+                pass  # 兼容 stream/非 bytes 响应
+        return response
+
+app.add_middleware(SanitizeJSONMiddleware)
+
 # ---- 初始化数据库 ----
 @app.on_event("startup")
 async def startup_event():

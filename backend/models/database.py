@@ -300,6 +300,7 @@ def update_photo_ai_result(
     summary: Optional[str] = None,
     diary_sentence: Optional[str] = None,
     error_message: Optional[str] = None,
+    people_description: Optional[str] = None,
 ):
     """更新照片的 AI 分析结果."""
     conn = get_connection()

@@ -20,6 +20,7 @@ from models.database import (
 from services.diary_generator import generate_diary
 from services.weather_service import get_weather_summary
 from services.deepseek_client import generate_rich_diary, is_configured as deepseek_is_configured
+from services.mimo_client import generate_diary_from_analysis, is_configured as mimo_configured
 
 logger = logging.getLogger(__name__)
 
@@ -119,22 +120,49 @@ async def create_diary(request: GenerateDiaryRequest):
         template_diary = generate_diary(photo_data, weather=weather_data)
         diary_data = template_diary
         if deepseek_is_configured():
-            try:
-                rich_context = {
-                    "photos": photo_data,
-                    "weather": weather_data,
-                    "template": template_diary,
-                    "requirements": {
-                        "sort_by_time": True,
-                        "include_place_intro": True,
-                        "include_weather": True,
-                        "language": "zh-CN",
-                    },
-                }
-                rich_diary = generate_rich_diary(rich_context)
-                diary_data = _normalize_rich_diary(rich_diary, template_diary, photo_data, weather_data)
-            except Exception as e:
-                logger.warning(f"DeepSeek diary generation failed, using template: {e}")
+            # MiMo 优先：基于自己的分析结果生成日记（信息不遗漏）
+            if mimo_configured():
+                try:
+                    context_for_mimo = {
+                        "date": template_diary.get("date"),
+                        "city": template_diary.get("city"),
+                        "weather": weather_data,
+                        "photo_count": len(photo_data),
+                    }
+                    mimo_diary = generate_diary_from_analysis(photo_data, context_for_mimo)
+                    if mimo_diary.get("content") and not mimo_diary.get("error"):
+                        diary_data = _normalize_rich_diary(mimo_diary, template_diary, photo_data, weather_data)
+                        diary_data["generator"] = "mimo"
+                        logger.info("MiMo diary generation succeeded")
+                    else:
+                        raise ValueError(mimo_diary.get("error", "MiMo returned empty content"))
+                except Exception as e:
+                    logger.warning(f"MiMo diary generation failed, trying DeepSeek: {e}")
+                    # DeepSeek 兜底
+                    if deepseek_is_configured():
+                        try:
+                            rich_context = {
+                                "photos": photo_data,
+                                "weather": weather_data,
+                                "template": template_diary,
+                                "requirements": {"sort_by_time":True,"include_place_intro":True,"include_weather":True,"language":"zh-CN"},
+                            }
+                            rich_diary = generate_rich_diary(rich_context)
+                            diary_data = _normalize_rich_diary(rich_diary, template_diary, photo_data, weather_data)
+                        except Exception as e2:
+                            logger.warning(f"DeepSeek diary generation also failed: {e2}")
+            elif deepseek_is_configured():
+                try:
+                    rich_context = {
+                        "photos": photo_data,
+                        "weather": weather_data,
+                        "template": template_diary,
+                        "requirements": {"sort_by_time":True,"include_place_intro":True,"include_weather":True,"language":"zh-CN"},
+                    }
+                    rich_diary = generate_rich_diary(rich_context)
+                    diary_data = _normalize_rich_diary(rich_diary, template_diary, photo_data, weather_data)
+                except Exception as e:
+                    logger.warning(f"DeepSeek diary generation failed, using template: {e}")
     except Exception as e:
         logger.error(f"Diary generation failed: {e}")
         raise HTTPException(status_code=500, detail=f"日志生成失败: {e}")
@@ -445,7 +473,26 @@ def _normalize_rich_diary(
     photo_data: list[dict],
     weather_data: dict,
 ) -> dict:
-    """合并 DeepSeek 输出和模板保底字段."""
+    """合并 MiMo/DeepSeek 输出和模板保底字段."""
+    import re
+    def clean_text(s):
+        if not s: return s
+        # 移除所有 JSON 不兼容字符：C0/C1 控制字符 + Unicode 行/段分隔符
+        import unicodedata
+        result = []
+        for ch in str(s):
+            cat = unicodedata.category(ch)
+            # Cc (control), Cf (format) except normal whitespace
+            if cat == 'Cc' and ch not in '\n\r\t':
+                continue
+            if cat == 'Cf' and ch not in ('\u200b',):
+                continue
+            # Line/paragraph separators break JSON
+            if ch in ('\u2028', '\u2029', '\u0085'):
+                continue
+            result.append(ch)
+        return ''.join(result)
+
     photo_count = len(photo_data)
     summaries = rich_diary.get("photo_summaries")
     if not isinstance(summaries, list) or len(summaries) == 0:
@@ -455,12 +502,13 @@ def _normalize_rich_diary(
     if not isinstance(keywords, list) or len(keywords) == 0:
         keywords = template_diary["keywords"]
 
-    content = rich_diary.get("content") or template_diary["content"]
-    place_intro = rich_diary.get("place_intro")
-    weather_summary = weather_data.get("summary") or rich_diary.get("weather_summary")
+    content = clean_text(rich_diary.get("content") or template_diary["content"])
+    place_intro = clean_text(rich_diary.get("place_intro"))
+    weather_summary = weather_data.get("summary") or clean_text(rich_diary.get("weather_summary"))
+    title = clean_text(rich_diary.get("title") or template_diary["title"])
 
     return {
-        "title": rich_diary.get("title") or template_diary["title"],
+        "title": title,
         "date": rich_diary.get("date") or template_diary["date"],
         "city": rich_diary.get("city") or template_diary["city"],
         "content": content,
@@ -469,5 +517,5 @@ def _normalize_rich_diary(
         "photo_summaries": summaries,
         "weather_summary": weather_summary,
         "place_intro": place_intro,
-        "generator": "deepseek",
+        "generator": "mimo",
     }

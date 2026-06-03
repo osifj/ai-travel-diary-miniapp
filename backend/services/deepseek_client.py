@@ -1,24 +1,19 @@
 """
 DeepSeek 文本生成客户端。
 
-用途:
-  1. MiMo 图片识别失败时，基于时间/地点生成保守兜底描述
-  2. 基于照片分析结果、地点、天气生成更自然的游玩日记
-  3. 接收用户补充内容，重新整合生成更完整的日记
+用途 (MiMo 兜底):
+  1. MiMo 图片识别失败时的保守描述
+  2. MiMo 日记生成失败时的日记生成
+  3. 用户对话 + 日记整合
 """
 
-import json
-import logging
-import os
-import re
+import json, logging, os, re
 from pathlib import Path
 from typing import Optional
-
 import httpx
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env", override=True)
-
 logger = logging.getLogger(__name__)
 
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
@@ -61,16 +56,10 @@ def _chat_json(messages: list[dict], temperature: Optional[float] = None) -> dic
         "thinking": {"type": DEEPSEEK_THINKING_TYPE},
     }
     headers = {"Authorization": f"Bearer {DEEPSEEK_API_KEY}", "Content-Type": "application/json"}
-    logger.info(f"Calling DeepSeek API: {url} with model {DEEPSEEK_MODEL}")
-    try:
-        with httpx.Client(timeout=DEEPSEEK_TIMEOUT_SECONDS) as client:
-            resp = client.post(url, headers=headers, json=payload)
-            resp.raise_for_status()
-            data = resp.json()
-    except httpx.TimeoutException:
-        raise RuntimeError(f"DeepSeek API timeout ({DEEPSEEK_TIMEOUT_SECONDS:g}s)")
-    except httpx.HTTPStatusError as e:
-        raise RuntimeError(f"DeepSeek API error: {e.response.status_code}")
+    with httpx.Client(timeout=DEEPSEEK_TIMEOUT_SECONDS) as client:
+        resp = client.post(url, headers=headers, json=payload)
+        resp.raise_for_status()
+        data = resp.json()
     choices = data.get("choices", [])
     if not choices: raise RuntimeError("DeepSeek returned empty choices")
     content = choices[0].get("message", {}).get("content", "")
@@ -79,152 +68,114 @@ def _chat_json(messages: list[dict], temperature: Optional[float] = None) -> dic
     return parsed
 
 
+# ---- 照片兜底分析 ----
 def generate_photo_fallback(photo_context: dict) -> dict:
     prompt = f"""你无法看到图片，只能根据已知元数据写保守兜底描述。
 已知: {json.dumps(photo_context, ensure_ascii=False)}
-输出 JSON: {{"scene_type":"unknown","activity":"unknown","food":[],"objects":[],"landmark_or_place_hint":"unknown","fun_fact":"","confidence":"low","diary_sentence":"..."}}"""
-    return _chat_json([{"role":"system","content":"你是谨慎的旅行日志助手。"},{"role":"user","content":prompt}], temperature=0.2)
+输出 JSON: {{"scene_type":"unknown","activity":"unknown","food":[],"objects":[],"landmark_hint":"unknown","fun_fact":"","confidence":"low","diary_sentence":"..."}}"""
+    return _chat_json([
+        {"role":"system","content":"你是谨慎的旅行日志助手。"},
+        {"role":"user","content":prompt}
+    ], temperature=0.2)
 
 
+# ---- 日记生成 (MiMo 失败时兜底) ----
 def generate_rich_diary(context: dict) -> dict:
-    """生成更丰富、按时间顺序、带科普描述的游玩日记."""
-    prompt = f"""请根据以下旅行照片分析数据，写一篇自然、有知识性的中文游玩日记。
+    prompt = f"""请根据以下旅行照片分析数据，写一篇自然、有知识性的中文游记。
 
 数据:
 {json.dumps(context, ensure_ascii=False, indent=2)}
 
-请只输出 JSON:
+输出 JSON:
 {{
   "title": "简洁标题",
   "date": "YYYY-MM-DD 或 unknown",
-  "city": "城市名或未知城市",
-  "place_intro": "1-2句该地点有意思的介绍。只写你有把握的常识；不确定就写轻量概括。",
-  "weather_summary": "1句天气简介；如果 weather.summary 存在，必须原样使用 weather.summary。",
-  "content": "一段或多段中文日记。必须按照片 taken_time 顺序描写。对每张照片中识别到的食物、场景、物体，可以自然融入简短的科普描述（如食材来历、建筑风格、地方文化等）。科普必须基于数据中已有的 fun_fact 或 food/objects 字段，不可凭空编造。语言自然流畅，有画面感和知识性。",
-  "keywords": ["3到8个关键词"],
-  "photo_summaries": [
-    {{
-      "taken_time": "照片时间或 null",
-      "city": "城市或 null",
-      "address": "地址或 null",
-      "place_name": "地点名或 null",
-      "time_source": "exif/user/unknown",
-      "location_source": "exif/user/ai/unknown",
-      "location_status": "found/approximate/unknown",
-      "scene_type": "场景",
-      "activity": "活动",
-      "diary_sentence": "该照片的一句自然描述"
-    }}
-  ]
+  "city": "城市名",
+  "place_intro": "1-2句地点介绍",
+  "weather_summary": "天气简介",
+  "content": "正文。按时间顺序叙事，每张照片的 food/fun_fact/people_description 自然融入。可以有感官描写和人物互动。300-800字。",
+  "keywords": ["5-8个关键词"],
+  "photo_summaries": [{{"taken_time":"...","city":"...","place_name":"...","scene_type":"...","activity":"...","diary_sentence":"..."}}]
 }}
 
-写作要求:
-1. 严格按照片时间顺序描写；无时间的照片放在最后。
-2. 有 EXIF/用户地点时优先使用真实地点；AI 推测地点必须写得保守。
-3. 食物、物体、活动、科普只使用数据里已有的内容（fun_fact、food、objects 等字段），不新增不存在细节。
-4. 天气只允许使用 weather.summary 或 weather 字段里的温度/降雨；weather_summary 必须原样等于 weather.summary。
-5. location_status 为 approximate 时不要把 place_name 当精确地点，只写城市或区域附近。
-6. 不要写心情/氛围标签（如 happy、轻松、愉快），用事实和观察叙事。
-7. 不要编造窗外、躲雨、人不多、去了某景点等数据未支持的细节。
-8. 每张照片如果 fun_fact 非空，在正文中自然融入该科普信息。
-9. 不要输出 Markdown，不要输出额外解释。"""
+原则: 具体>抽象，观察>感受，可以描述人物，不编造。"""
 
     return _chat_json([
-        {"role": "system", "content": "你是中文旅行日记写作者。重事实、会叙事、善用科普知识丰富内容，不编造，不写心情。"},
-        {"role": "user", "content": prompt},
+        {"role":"system","content":"你是中文旅行日记写作者。重事实、会叙事、善用科普。可以描述人物和互动。"},
+        {"role":"user","content":prompt},
     ], temperature=0.55)
 
 
+# ---- 用户补充 + 整合 ----
 def refine_diary_with_user_notes(original_diary: dict, user_notes: str) -> dict:
-    """接收用户补充内容，重新整合生成更完整的日记."""
-    prompt = f"""请将用户补充的信息整合进原有旅行日记，重新输出一篇更完整的日记。
+    prompt = f"""将用户补充的信息整合进原有旅行日记。
 
-原有日记:
-{json.dumps(original_diary, ensure_ascii=False, indent=2)}
+原日记: {json.dumps(original_diary, ensure_ascii=False, indent=2)}
+用户补充: {user_notes}
 
-用户补充内容:
-{user_notes}
+输出 JSON: {{"title":"标题","content":"整合后正文","keywords":["关键词"],"place_intro":"地点介绍"}}
 
-请只输出 JSON:
-{{
-  "title": "可更新的标题",
-  "date": "YYYY-MM-DD",
-  "city": "城市名",
-  "place_intro": "1-2句地点介绍",
-  "weather_summary": "天气简介（保留原日记中的天气信息）",
-  "content": "整合后的完整日记。保留原日记中基于照片识别的客观内容（场景、食物、物体、科普、天气），将用户补充的信息自然融入相应的段落。用户提到的地点可加入简短的常识性科普。不要编造用户未提及的内容。",
-  "keywords": ["更新后的关键词"],
-  "photo_summaries": "保留原日记中 photo_summaries 不变"
-}}
-
-整合原则:
-1. ⚠️ 用户说辞优先：如果用户纠正了 AI 识别结果（如 AI 识别为三文鱼但用户说吃的是火锅），必须按用户说法写，并删除原日记中被纠正的内容。用户未涉及的原日记内容继续保留。
-2. 用户补充的内容自然融入对应位置（如用户说中午在某餐厅吃火锅，就插入到对应时间段）
-3. 用户提到的食物或地点，必须加入简短有趣的科普（如：火锅起源于重庆/四川、深圳火锅以牛肉火锅和粥底火锅为特色、某地某菜系的来历等）。科普基于真实常识。
-4. 用户提到的地点同样加入科普（如城市历史、区域特色、建筑风格等）
-5. 不要写心情/氛围标签
-6. 不要编造用户未提到的细节
-7. 保留原始天气和地点介绍"""
+规则: 用户说辞优先；用户提到的食物/地点加入科普；可以描述人物互动；不编造。"""
 
     return _chat_json([
-        {"role": "system", "content": "你是中文旅行日记写作者。用户说辞永远优先于AI识别。善于整合用户回忆，为用户提到的食物和地点加入有趣科普，不编造，不写心情。"},
-        {"role": "user", "content": prompt},
+        {"role":"system","content":"你是旅行日记写作者。用户说辞优先，善加科普。可以写人物。"},
+        {"role":"user","content":prompt},
     ], temperature=0.6)
 
 
 def restyle_diary(diary: dict, style: str) -> dict:
-    """用指定风格重新生成日记."""
     guides = {
-        "轻松": "用轻松幽默的口吻重写，加入俏皮比喻和日常感，不失真。",
-        "正式": "用正式优雅的文学语言重写，像旅行杂志文章，用词考究。",
-        "简短": "用最精炼语言重写，100字以内，保留时间地点活动和科普亮点。",
-        "科普": "以科普为主线重写，大幅扩展地点和食物/场景的文化科学知识。",
+        "轻松": "用轻松幽默的口吻重写，加入俏皮比喻和日常感。",
+        "正式": "用正式优雅的文学语言重写，像旅行杂志文章。",
+        "简短": "用最精炼语言重写，100字以内。",
+        "科普": "以科普为主线重写，大幅扩展知识。",
     }
     guide = guides.get(style, guides["轻松"])
-
-    prompt = f"""请按以下风格重写这篇旅行日记。
-
+    prompt = f"""按以下风格重写旅行日记。
 原日记: {json.dumps(diary, ensure_ascii=False, indent=2)}
 风格: {guide}
-
-输出 JSON: {{"title":"标题","content":"正文","keywords":["关键词"]}}
-保留所有事实，不编造，不写心情。"""
+输出 JSON: {{"title":"标题","content":"正文","keywords":["关键词"]}}"""
 
     return _chat_json([
-        {"role": "system", "content": f"中文旅行日记写作者。风格：{style}。"},
-        {"role": "user", "content": prompt},
+        {"role":"system","content":f"中文旅行日记写作者。风格：{style}。"},
+        {"role":"user","content":prompt},
     ], temperature=0.7)
 
 
 def chat_about_diary(messages: list[dict], diary_context: dict) -> str:
-    """多轮对话 — 与用户讨论日记修改，不直接写入。返回 AI 回复文本。"""
     ctx = json.dumps(diary_context, ensure_ascii=False, indent=2)
-    prompt = f"""你要帮助用户完善这篇旅行日记。你可以：
+    prompt = f"""帮助用户完善这篇旅行日记。你可以:
+1. 确认修改意见
+2. 追问细节
+3. 给出建议
+4. 补充科普
+5. 当用户满意或说"可以了/整合/就这样"，回复中必须包含「✅ 我已准备好整合日记」
 
-1. 确认用户修改意见（"你是说xxx，对吗？"）
-2. 追问细节让日记更丰富（"在哪里吃的？有什么特色？"）
-3. 给出建议（"这个地点附近还有xxx，你想加进去吗？"）
-4. 补充科普（"说到火锅，深圳其实..."）
-5. 当用户表示满意或说"可以了/整合/就这样"，回复中必须包含「✅ 我已准备好整合日记」这句话，提示用户可以点整合按钮。
+当前日记: {ctx}
+规则: 用户说辞为准；可以讨论人物；不编造；用中文像朋友聊天。"""
 
-这是当前日记的摘要上下文：
-{ctx}
-
-注意：
-- 用户说的为准，覆盖 AI 识别结果
-- 不要写心情/氛围标签
-- 不要编造事实
-- 用中文回复，自然、有帮助、像朋友聊天"""
-
-    msgs = [
-        {"role": "system", "content": prompt},
-        *messages[-20:],  # 最近 20 轮对话
-    ]
+    msgs = [{"role":"system","content":prompt}, *messages[-20:]]
     return _chat_text(msgs, temperature=0.7)
 
 
+def integrate_chat_history(original_diary: dict, messages: list[dict]) -> dict:
+    history_text = "\n".join([
+        f"{'用户' if m['role']=='user' else 'AI'}: {m['content'][:200]}"
+        for m in messages if m['role'] in ('user','assistant')
+    ])
+    prompt = f"""把对话中用户补充的内容整合进日记。
+原日记: {json.dumps(original_diary, ensure_ascii=False, indent=2)}
+对话: {history_text}
+输出 JSON: {{"title":"标题","content":"正文","keywords":["关键词"],"place_intro":"地点介绍"}}
+规则: 用户说辞优先覆盖；食物/地点加科普；可写人物；不编造。"""
+
+    return _chat_json([
+        {"role":"system","content":"你是旅行日记整合者。用户说辞优先，善加科普。"},
+        {"role":"user","content":prompt},
+    ], temperature=0.5)
+
+
 def _chat_text(messages: list[dict], temperature: float = 0.7) -> str:
-    """调用 DeepSeek 纯文本对话，返回文本。"""
     full = ""
     for chunk in _chat_text_stream(messages, temperature):
         full += chunk
@@ -232,7 +183,6 @@ def _chat_text(messages: list[dict], temperature: float = 0.7) -> str:
 
 
 def _chat_text_stream(messages: list[dict], temperature: float = 0.7):
-    """流式调用 DeepSeek 纯文本对话，逐块 yield 文本。"""
     if not is_configured(): raise ValueError("DEEPSEEK_API_KEY 未配置")
     url = f"{DEEPSEEK_BASE_URL.rstrip('/')}/chat/completions"
     payload = {
@@ -242,48 +192,16 @@ def _chat_text_stream(messages: list[dict], temperature: float = 0.7):
         "stream": True,
     }
     headers = {"Authorization": f"Bearer {DEEPSEEK_API_KEY}", "Content-Type": "application/json"}
-    logger.info(f"Calling DeepSeek (stream): {url}")
     with httpx.Client(timeout=DEEPSEEK_TIMEOUT_SECONDS) as client:
         with client.stream("POST", url, headers=headers, json=payload) as resp:
             resp.raise_for_status()
             for line in resp.iter_lines():
                 if line.startswith("data: "):
                     data_str = line[6:]
-                    if data_str == "[DONE]":
-                        return
+                    if data_str == "[DONE]": return
                     try:
                         data = json.loads(data_str)
-                        delta = data.get("choices", [{}])[0].get("delta", {})
-                        content = delta.get("content", "")
-                        if content:
-                            yield content
-                    except json.JSONDecodeError:
-                        pass
-
-
-def integrate_chat_history(original_diary: dict, messages: list[dict]) -> dict:
-    """把多轮对话内容整合进日记，生成最终版。"""
-    history_text = "\n".join([
-        f"{'用户' if m['role']=='user' else 'AI'}: {m['content'][:200]}"
-        for m in messages if m['role'] in ('user', 'assistant')
-    ])
-    prompt = f"""把以下对话中用户补充/修改的内容整合进旅行日记。
-
-原日记:
-{json.dumps(original_diary, ensure_ascii=False, indent=2)}
-
-对话历史:
-{history_text}
-
-输出 JSON: {{"title":"标题","content":"整合后日记正文","keywords":["关键词"],"place_intro":"地点介绍"}}
-
-规则:
-1. 用户说辞优先覆盖 AI 识别
-2. 用户提到的食物/地点加入科普
-3. 不编造、不写心情
-4. 保留天气和原日记中未被纠正的内容"""
-
-    return _chat_json([
-        {"role": "system", "content": "你是中文旅行日记整合者。用户说辞优先，善加科普。"},
-        {"role": "user", "content": prompt},
-    ], temperature=0.5)
+                        delta = data.get("choices",[{}])[0].get("delta",{})
+                        c = delta.get("content","")
+                        if c: yield c
+                    except json.JSONDecodeError: pass
