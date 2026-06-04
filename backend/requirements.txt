@@ -15,7 +15,7 @@ Pillow==11.1.0
 # HEIC/HEIF 格式支持 (可选，需要先安装 libheif)
 # pillow-heif==0.21.0
 
-# HTTP 客户端 (调用 MiMo API)
+# HTTP 客户端 (调用 MiMo API / 测试)
 httpx==0.28.1
 
 # 环境变量
@@ -29,7 +29,6 @@ python-dotenv==1.0.1
 # 测试
 pytest==8.3.4
 pytest-asyncio==0.25.0
-httpx  # 已在上方声明，用于 TestClient
 
 # --- 可选: 地点解析 ---
 # requests>=2.32.0

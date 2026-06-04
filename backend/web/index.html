@@ -612,6 +612,11 @@ function toast(msg, type) {
   clearTimeout(t._tid); t._tid = setTimeout(() => t.classList.remove('show'), 2000);
 }
 
+function escHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
 // ===== 昵称 =====
 let nickname = localStorage.getItem('travel_diary_nickname') || '';
 const nickInput = document.getElementById('nicknameInput');
@@ -745,9 +750,9 @@ el('btnUpload').addEventListener('click', async () => {
 function renderUploadResults() {
   el('uploadResults').innerHTML = state.uploadResults.map(r => {
     const ex = r.exif||{};
-    const ts = ex.taken_time||'无时间'; const gs = ex.has_gps?`有 GPS`:'无 GPS';
-    const src = ex.time_source?`来源: ${ex.time_source}/${ex.location_source}`:'';
-    return `<div class="photo-row"><span class="photo-num">${r.success?'✅':'❌'}</span><div class="photo-info"><strong>${r.filename}</strong> <span class="tag">${ex.image_format||'?'}</span><br><span class="meta">${ts} | ${gs}</span>${src?`<br><span class="meta">${src}</span>`:''}${r.error?`<br><span class="text-error">${r.error}</span>`:''}</div></div>`;
+    const ts = escHtml(ex.taken_time)||'无时间'; const gs = ex.has_gps?`有 GPS`:'无 GPS';
+    const src = ex.time_source?`来源: ${escHtml(ex.time_source)}/${escHtml(ex.location_source)}`:'';
+    return `<div class="photo-row"><span class="photo-num">${r.success?'✅':'❌'}</span><div class="photo-info"><strong>${escHtml(r.filename)}</strong> <span class="tag">${escHtml(ex.image_format)||'?'}</span><br><span class="meta">${ts} | ${gs}</span>${src?`<br><span class="meta">${src}</span>`:''}${r.error?`<br><span class="text-error">${escHtml(r.error)}</span>`:''}</div></div>`;
   }).join('');
 }
 
@@ -771,12 +776,13 @@ el('btnAnalyze').addEventListener('click', async () => {
     el('analyzeResults').innerHTML = `<p class="text-error">${err.message}</p>`;
   }
 
-  // 模拟进度（因为并发分析很快，用 SSE 轮询更好但简化处理）
+  // 进度条填满动画
   const fill = document.getElementById('analyzeProgressFill');
   const txt = document.getElementById('analyzeProgressText');
   if (fill) fill.style.width = '100%';
   if (txt) txt.textContent = `✅ ${state.analyzeResults.length} 张照片分析完成`;
-
+  // 让用户看到进度条填满后再隐藏
+  await new Promise(r => setTimeout(r, 400));
   el('analyzeProgress').classList.add('hidden');
   document.getElementById('step2Num').classList.add('done');
   el('analyzeResults').innerHTML = state.analyzeResults.map((r,i) => {
@@ -1266,7 +1272,15 @@ function _renderMap(mapId, photos) {
   if (el2._leafletMap) { el2._leafletMap.remove(); }
   const map = L.map(mapId, { attributionControl: false }).setView([markers[0].latitude, markers[0].longitude], 13);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19 }).addTo(map);
-  markers.forEach(p => { L.marker([p.latitude, p.longitude]).addTo(map).bindPopup(`<strong>${p.city||''} ${p.place_name||''}</strong><br>${p.diary_sentence||''}<br><small>${p.taken_time||''}</small>`); });
+  // 瓦片加载失败的降级提示
+  let tileErrCount = 0;
+  map.on('tileerror', () => {
+    tileErrCount++;
+    if (tileErrCount >= 3) {
+      el2.innerHTML += '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:1000;background:rgba(0,0,0,0.7);color:#fff;padding:8px 16px;border-radius:8px;font-size:12px;pointer-events:none">地图瓦片加载失败</div>';
+    }
+  });
+  markers.forEach(p => { L.marker([p.latitude, p.longitude]).addTo(map).bindPopup(`<strong>${escHtml(p.city||'')} ${escHtml(p.place_name||'')}</strong><br>${escHtml(p.diary_sentence||'')}<br><small>${escHtml(p.taken_time||'')}</small>`); });
   if (markers.length > 1) map.fitBounds(markers.map(p=>[p.latitude, p.longitude]), {padding:[30,30]});
   el2._leafletMap = map;
 }
@@ -1502,7 +1516,9 @@ function toggleVoice() {
   toast('正在聆听...', 'success');
 }
 function stopVoice() {
-  if (voiceRecognition) { voiceRecognition.stop(); voiceRecognition = null; }
+  const vr = voiceRecognition;
+  voiceRecognition = null; // 先置空防递归 — onend 回调也会调 stopVoice
+  if (vr) { vr.stop(); }
   isVoiceActive = false;
   const btn = document.getElementById('btnVoice');
   btn.textContent = '🎤';
