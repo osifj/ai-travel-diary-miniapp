@@ -62,7 +62,12 @@ def _analyze_single(photo: dict, geocode: bool, using_mock: bool) -> dict:
         # 2. AI 分析（传入位置上下文）
         loc_ctx = f"{photo.get('city','')} {photo.get('district','')} {photo.get('place_name','')} {photo.get('address','')}".strip()
         if using_mock:
-            ai_result = analyze_image_mock(processed_path)
+            ai_result = analyze_image_mock(processed_path, meta={
+                "city": photo.get("city"),
+                "place_name": photo.get("place_name"),
+                "address": photo.get("address"),
+                "taken_time": photo.get("taken_time"),
+            })
         else:
             ai_result = analyze_image(processed_path, location_context=loc_ctx)
 

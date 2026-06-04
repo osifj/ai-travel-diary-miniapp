@@ -312,17 +312,48 @@ def is_configured() -> bool:
     return bool(MIMO_API_KEY and MIMO_API_KEY != "your_api_key_here" and MIMO_BASE_URL and MIMO_BASE_URL != "your_mimo_base_url_here")
 
 
-def analyze_image_mock(image_path: str) -> dict:
-    """Mock 分析。"""
+def analyze_image_mock(image_path: str, meta: dict = None) -> dict:
+    """Mock 分析 — 基于照片元数据返回合理的保守描述。meta 可含 city/place_name/taken_time 等。"""
     import hashlib
     logger.info(f"MOCK analysis: {image_path}")
+    meta = meta or {}
+    city = meta.get("city") or "当地"
+    place = meta.get("place_name") or meta.get("address") or city
+    time_str = str(meta.get("taken_time") or "")[:16]
+
+    # 基于哈希选一个场景骨架，填入真实地点和时间
     h = hashlib.md5(image_path.encode()).hexdigest()
     idx = int(h[:8], 16) % 5
-    scenarios = [
-        {"scene_type":"restaurant","scene_subtype":"dim_sum","activity":"eating","food":["鲜虾云吞面","丝袜奶茶"],"drinks":["冻柠茶"],"objects":["餐桌","碗碟","筷子","菜单"],"readable_text":["兰芳园","云吞面 $42"],"people_description":"两位年轻人在靠窗位置用餐，穿着休闲夏装","time_of_day":"下午三点，阳光从窗外斜射进来，在木桌上投下光斑","season_hint":"夏季，短袖着装","location_clues":"繁体中文招牌、典型的港式茶餐厅卡座布局、马赛克地砖、窗外可见密集的霓虹招牌和双层巴士","landmark_hint":"旺角兰芳园茶餐厅","atmosphere":"下午暖黄阳光洒在木桌上，窗外是旺角人来人往的街景","photo_quality":"俯拍餐桌特写","fun_fact":"云吞面是香港经典平民美食，竹升面用竹竿反复压打，面条筋道弹牙","confidence":"medium","diary_sentence":"下午三点，坐在旺角兰芳园的窗边，一碗冒着热气的鲜虾云吞面配上冻柠茶，午后的阳光把木桌晒得发暖"},
-        {"scene_type":"landmark","scene_subtype":"viewpoint","activity":"sightseeing","food":[],"drinks":[],"objects":["城市天际线","观景台","望远镜"],"people_description":"几名游客在观景台拍照","time_of_day":"黄昏时分，太阳正在西沉，天空呈现金色到粉色的渐变","season_hint":"夏季，日落较晚，天色仍亮","location_clues":"俯瞰维港两岸的高楼群，远处可见青马大桥轮廓，观景台护栏是凌霄阁标志性设计","landmark_hint":"太平山顶凌霄阁","atmosphere":"黄昏金色阳光洒在城市建筑上，海面泛着金光","photo_quality":"广角全景","fun_fact":"太平山顶海拔552米，是香港岛最高点，山顶缆车自1888年运营至今","confidence":"high","diary_sentence":"傍晚六点站在太平山顶，维多利亚港两岸的摩天大楼在夕阳中渐次亮起灯光"},
-        {"scene_type":"street_market","scene_subtype":"wet_market","activity":"shopping","food":["新鲜水果","烧腊"],"drinks":[],"objects":["水果摊","烧腊档","霓虹招牌","手推车"],"people_description":"摊主在切烧鹅，几位顾客在挑选水果","time_of_day":"上午十点左右，阳光从骑楼缝隙照进来","season_hint":"深秋，长袖薄外套","location_clues":"密集的霓虹招牌竖排繁体字、骑楼建筑、街市地面潮湿、烧腊档挂着一排烧鹅叉烧","landmark_hint":"旺角街市","atmosphere":"热闹的市井气息，红灯笼和霓虹招牌交织，上午的阳光从头顶的帆布棚缝隙漏下来","photo_quality":"街头抓拍","fun_fact":"香港街市的烧腊档一般凌晨三四点就开炉，烧鹅要经过上皮、风干、烤制三道工序","confidence":"medium","diary_sentence":"上午十点穿过旺角街市，烧腊档飘来的蜜汁香气混合着水果摊的热带果香，阳光从招牌缝隙洒在湿漉漉的地面上"},
-        {"scene_type":"beach","scene_subtype":"sandy_beach","activity":"relaxing","food":[],"drinks":["椰子"],"objects":["沙滩","遮阳伞","沙滩巾","椰青"],"people_description":"几组游客在沙滩上晒太阳、游泳","time_of_day":"正午十二点，烈日当头","season_hint":"盛夏，沙滩上都是遮阳伞","location_clues":"新月形沙滩、背后是低矮山丘和豪宅区、海水呈蓝绿色、沙滩坡度平缓","landmark_hint":"浅水湾","atmosphere":"正午烈日把沙滩晒得发烫，海面在阳光下闪着碎银般的光","photo_quality":"广角海岸线","fun_fact":"浅水湾沙滩的沙是人工运来的，原本这里是岩石海岸，英殖时期为打造度假胜地从海南运来细沙","confidence":"high","diary_sentence":"正午的浅水湾，烈日把沙滩晒得发烫，抱着椰青躲进遮阳伞下看海浪一层层推上来"},
-        {"scene_type":"museum","scene_subtype":"art_museum","activity":"sightseeing","food":[],"drinks":[],"objects":["画作","雕塑","展厅","解说牌"],"people_description":"几位参观者在画作前驻足讨论","time_of_day":"下午两点，室内恒温","season_hint":"无季节特征","location_clues":"极简主义建筑风格、挑高混凝土天花板、工业风管道外露、展品是当代艺术装置、英文和繁体中文双语解说","landmark_hint":"M+博物馆","atmosphere":"冷白展厅灯光，挑高空间，下午的阳光从天窗滤进来","photo_quality":"展厅内部拍摄","fun_fact":"M+博物馆是亚洲首个全球性当代视觉文化博物馆，建筑由赫尔佐格和德梅隆设计","confidence":"high","diary_sentence":"下午两点走进M+的挑高展厅，冷白灯光下每个人都放慢了脚步，只有偶尔的快门声打破安静"},
+
+    skeletons = [
+        {"scene_type":"sightseeing","scene_subtype":"general","activity":"sightseeing",
+         "food":[],"drinks":[],"objects":["建筑","街道","行人"],
+         "people_description":"","time_of_day":"","season_hint":"","location_clues":"",
+         "landmark_hint":"","atmosphere":"","photo_quality":"","fun_fact":"","confidence":"low",
+         "diary_sentence_tpl":"{time}在{place}附近拍摄的照片"},
+        {"scene_type":"restaurant","scene_subtype":"general","activity":"eating",
+         "food":["当地美食"],"drinks":[],"objects":["餐桌","餐具"],
+         "people_description":"","time_of_day":"","season_hint":"","location_clues":"",
+         "landmark_hint":"","atmosphere":"","photo_quality":"","fun_fact":"","confidence":"low",
+         "diary_sentence_tpl":"{time}在{place}用餐时拍摄"},
+        {"scene_type":"street","scene_subtype":"general","activity":"walking",
+         "food":[],"drinks":[],"objects":["街道","店铺"],
+         "people_description":"","time_of_day":"","season_hint":"","location_clues":"",
+         "landmark_hint":"","atmosphere":"","photo_quality":"","fun_fact":"","confidence":"low",
+         "diary_sentence_tpl":"{time}漫步在{place}的街头"},
+        {"scene_type":"landscape","scene_subtype":"general","activity":"sightseeing",
+         "food":[],"drinks":[],"objects":["风景","天空"],
+         "people_description":"","time_of_day":"","season_hint":"","location_clues":"",
+         "landmark_hint":"","atmosphere":"","photo_quality":"","fun_fact":"","confidence":"low",
+         "diary_sentence_tpl":"{time}在{place}欣赏风景"},
+        {"scene_type":"shopping","scene_subtype":"general","activity":"shopping",
+         "food":[],"drinks":[],"objects":["商品","商店"],
+         "people_description":"","time_of_day":"","season_hint":"","location_clues":"",
+         "landmark_hint":"","atmosphere":"","photo_quality":"","fun_fact":"","confidence":"low",
+         "diary_sentence_tpl":"{time}在{place}逛街时拍摄"},
     ]
-    return scenarios[idx]
+    sk = skeletons[idx]
+    t = time_str or "游玩时"
+    sk["diary_sentence"] = sk.pop("diary_sentence_tpl").format(time=t, place=place)
+    sk["landmark_hint"] = place
+    return sk

@@ -1272,12 +1272,20 @@ function _renderMap(mapId, photos) {
   if (el2._leafletMap) { el2._leafletMap.remove(); }
   const map = L.map(mapId, { attributionControl: false }).setView([markers[0].latitude, markers[0].longitude], 13);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19 }).addTo(map);
-  // 瓦片加载失败的降级提示
+  // 瓦片加载失败的降级提示（用 DOM API 避免 innerHTML 摧毁 Leaflet）
   let tileErrCount = 0;
   map.on('tileerror', () => {
     tileErrCount++;
-    if (tileErrCount >= 3) {
-      el2.innerHTML += '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:1000;background:rgba(0,0,0,0.7);color:#fff;padding:8px 16px;border-radius:8px;font-size:12px;pointer-events:none">地图瓦片加载失败</div>';
+    if (tileErrCount === 3) {
+      const warn = document.createElement('div');
+      warn.textContent = '地图瓦片加载失败';
+      Object.assign(warn.style, {
+        position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)',
+        zIndex:'1000', background:'rgba(0,0,0,0.7)', color:'#fff',
+        padding:'8px 16px', borderRadius:'8px', fontSize:'12px', pointerEvents:'none'
+      });
+      el2.style.position = el2.style.position || 'relative';
+      el2.appendChild(warn);
     }
   });
   markers.forEach(p => { L.marker([p.latitude, p.longitude]).addTo(map).bindPopup(`<strong>${escHtml(p.city||'')} ${escHtml(p.place_name||'')}</strong><br>${escHtml(p.diary_sentence||'')}<br><small>${escHtml(p.taken_time||'')}</small>`); });
