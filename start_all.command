@@ -18,7 +18,61 @@ echo "🔋 防止 Mac 睡眠..."
 caffeinate -dimsu &
 CAFFEINATE_PID=$!
 
-# ---- 2. 启动后端 ----
+# ---- 2. 检查 API Key 配置 ----
+ENV_FILE="backend/.env"
+PERSIST_ENV="$HOME/.ai-travel-diary.env"
+
+if [ ! -f "$ENV_FILE" ]; then
+  echo ""
+  echo "🔑 API Key 未配置，正在检测..."
+
+  if [ -f "$PERSIST_ENV" ]; then
+    echo "   从 $PERSIST_ENV 恢复..."
+    cp "$PERSIST_ENV" "$ENV_FILE"
+    echo "   ✅ 已恢复"
+  else
+    echo ""
+    echo "   ⚠️  首次运行需要配置 API Key"
+    echo ""
+    read -p "   DeepSeek API Key (回车跳过): " DS_KEY
+    read -p "   MiMo API Key (回车跳过): " MM_KEY
+
+    if [ -n "$DS_KEY" ] || [ -n "$MM_KEY" ]; then
+      cat > "$ENV_FILE" << EOF
+MIMO_API_KEY=${MM_KEY:-your_api_key_here}
+MIMO_BASE_URL=https://api.xiaomimimo.com/v1
+MIMO_MODEL=mimo-v2.5
+MIMO_MAX_COMPLETION_TOKENS=4096
+MIMO_TEMPERATURE=0.1
+MIMO_TOP_P=0.9
+MIMO_RESPONSE_FORMAT=json_object
+MIMO_THINKING_TYPE=disabled
+MIMO_TIMEOUT_SECONDS=120
+
+DEEPSEEK_API_KEY=${DS_KEY:-your_deepseek_api_key_here}
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-v4-flash
+DEEPSEEK_MAX_COMPLETION_TOKENS=4096
+DEEPSEEK_TEMPERATURE=0.8
+DEEPSEEK_TIMEOUT_SECONDS=90
+DEEPSEEK_THINKING_TYPE=disabled
+
+HOST=0.0.0.0
+PORT=8000
+
+GEOCODER_PROVIDER=nominatim
+GEOCODER_API_KEY=
+EOF
+      cp "$ENV_FILE" "$PERSIST_ENV"
+      echo "   ✅ 已保存到 $PERSIST_ENV（下次自动恢复）"
+    else
+      echo "   ⚠️  未配置任何 Key，将使用 Mock 模式"
+    fi
+  fi
+fi
+
+# ---- 3. 启动后端 ----
+echo ""
 echo "🚀 启动 FastAPI 后端..."
 cd backend
 if [ -d ".venv" ]; then
@@ -33,7 +87,7 @@ LAN_IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/nul
 echo "   本地访问: http://127.0.0.1:8000"
 echo "   局域网访问: http://${LAN_IP}:8000"
 
-# ---- 3. 启动 ngrok ----
+# ---- 4. 启动 ngrok ----
 echo ""
 echo "🌐 启动 ngrok 公网穿透..."
 if ! command -v ngrok &> /dev/null; then
