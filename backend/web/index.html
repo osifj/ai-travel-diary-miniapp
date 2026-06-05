@@ -238,9 +238,10 @@
     position: fixed; top: 20px; left: 50%; z-index: 9999;
     background: #1E1E2E; color: #fff; padding: 12px 24px; border-radius: 24px;
     font-size: 14px; font-weight: 500; box-shadow: 0 8px 30px rgba(0,0,0,0.2);
-    opacity: 0; pointer-events: none;
+    opacity: 0; pointer-events: auto;
     transition: all 0.3s cubic-bezier(.4,0,.2,1);
     transform: translateX(-50%) translateY(-10px);
+    white-space: nowrap;
   }
   .toast.show { opacity: 1; transform:translateX(-50%) translateY(0); }
   .toast.success { background: var(--g); }
@@ -476,6 +477,28 @@
     transition: all 0.2s;
   }
   .batch-toggle.active { background:var(--p); color:#fff; border-color:var(--p); }
+
+  /* 图片灯箱 */
+  .lightbox {
+    position:fixed; top:0;left:0;right:0;bottom:0; z-index:9999;
+    background:rgba(0,0,0,0.92); display:flex; align-items:center; justify-content:center;
+    opacity:0; pointer-events:none; transition:opacity 0.25s;
+  }
+  .lightbox.show { opacity:1; pointer-events:auto; }
+  .lightbox img { max-width:95vw; max-height:90vh; object-fit:contain; border-radius:8px; }
+  .lightbox-close {
+    position:absolute; top:16px; right:16px; width:36px; height:36px;
+    background:rgba(255,255,255,0.15); color:#fff; border:none; border-radius:50%;
+    font-size:20px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  }
+  .lightbox-nav {
+    position:absolute; top:50%; transform:translateY(-50%);
+    width:40px; height:40px; background:rgba(255,255,255,0.15); color:#fff;
+    border:none; border-radius:50%; font-size:18px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .lightbox-prev { left:12px; }
+  .lightbox-next { right:12px; }
 </style>
 <script>
 // PWA Manifest + Service Worker (内联)
@@ -517,7 +540,6 @@ self.addEventListener('fetch',e=>{
 </head>
 <body>
 
-<div id="toast" class="toast"></div>
 <div id="filterModal" class="filter-modal hidden"></div>
 
 <div id="nicknameGate" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center">
@@ -615,10 +637,17 @@ self.addEventListener('fetch',e=>{
 </div>
 
 <script>
+let _toastCount = 0;
 function toast(msg, type) {
-  const t = document.getElementById('toast');
-  t.textContent = msg; t.className = 'toast ' + (type||'') + ' show';
-  clearTimeout(t._tid); t._tid = setTimeout(() => t.classList.remove('show'), 2000);
+  const t = document.createElement('div');
+  t.className = 'toast ' + (type||'') + ' show';
+  t.textContent = msg;
+  const offset = _toastCount * 52;
+  t.style.top = (20 + offset) + 'px';
+  _toastCount++;
+  document.body.appendChild(t);
+  const remove = () => { t.classList.remove('show'); _toastCount--; setTimeout(() => t.remove(), 300); };
+  setTimeout(remove, 2200);
 }
 
 function escHtml(s) {
@@ -769,11 +798,12 @@ function handleFiles(fl) {
 
 function renderThumbs() {
   const g = el('thumbGrid');
+  const urls = state.files.map(f => URL.createObjectURL(f));
   g.innerHTML = state.files.map((f,i) =>
-    `<div class="thumb-item"><img src="${URL.createObjectURL(f)}"><button class="thumb-del">✕</button><span class="thumb-type">${f.name.split('.').pop().toUpperCase()}</span></div>`
+    `<div class="thumb-item" onclick="openLightbox([${urls.map(u=>`'${u}'`).join(',')}],${i})"><img src="${urls[i]}"><button class="thumb-del">✕</button><span class="thumb-type">${f.name.split('.').pop().toUpperCase()}</span></div>`
   ).join('');
   g.querySelectorAll('.thumb-del').forEach((b,i) => b.addEventListener('click', e => {
-    e.stopPropagation(); URL.revokeObjectURL(g.querySelectorAll('img')[i].src);
+    e.stopPropagation(); URL.revokeObjectURL(urls[i]);
     state.files.splice(i,1); renderThumbs();
     el('btnUpload').disabled = state.files.length === 0;
     el('btnUpload').textContent = state.files.length ? `上传 ${state.files.length} 张照片` : '上传照片';
@@ -1311,14 +1341,36 @@ async function batchExport() {
   toast(`已导出 ${parts.length} 篇日记`, 'success');
 }
 
+let _undoTimer = null, _undoId = null;
 async function deleteDiary(id) {
   if (!confirm('确定删除这篇日记吗？')) return;
-  try {
-    const r = await fetch(`/diary/${id}`, { method: 'DELETE' });
-    const d = await r.json();
-    if (d.success) { toast('已删除', 'success'); loadHistory(); }
-    else toast(d.detail || '删除失败', 'error');
-  } catch (err) { toast(err.message, 'error'); }
+  // 先隐藏卡片，5 秒后可撤销
+  const card = document.getElementById('card-'+id);
+  if (card) card.style.opacity = '0.3';
+  clearTimeout(_undoTimer);
+  _undoId = id;
+  const t = document.createElement('div');
+  t.className = 'toast show';
+  t.innerHTML = `已删除 · <span style="text-decoration:underline;cursor:pointer;font-weight:700" id="undoLink">撤销</span>`;
+  document.body.appendChild(t);
+  document.getElementById('undoLink').onclick = () => {
+    clearTimeout(_undoTimer);
+    t.remove();
+    if (card) card.style.opacity = '1';
+    _undoId = null;
+    toast('已撤销', 'success');
+  };
+  _undoTimer = setTimeout(async () => {
+    t.remove();
+    if (!_undoId) return;
+    try {
+      const r = await fetch(`/diary/${_undoId}`, { method: 'DELETE' });
+      const d = await r.json();
+      if (d.success) { loadHistory(); }
+      else toast(d.detail || '删除失败', 'error');
+    } catch (err) { toast(err.message, 'error'); }
+    _undoId = null;
+  }, 5000);
 }
 
 async function showDiaryDetail(id) {
@@ -1704,6 +1756,37 @@ function exportMD() {
   }, {passive:true});
   document.addEventListener('touchend', () => { pulling = false; });
 })();
+
+// ===== 图片灯箱 =====
+let _lbPhotos = [], _lbIdx = 0;
+function openLightbox(photoUrls, idx) {
+  _lbPhotos = photoUrls; _lbIdx = idx || 0;
+  const lb = document.getElementById('lightbox');
+  document.getElementById('lbImg').src = _lbPhotos[_lbIdx];
+  document.getElementById('lbPrev').style.display = _lbPhotos.length > 1 ? '' : 'none';
+  document.getElementById('lbNext').style.display = _lbPhotos.length > 1 ? '' : 'none';
+  lb.classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('show');
+  document.body.style.overflow = '';
+}
+function lbPrev() { if (_lbIdx > 0) { _lbIdx--; document.getElementById('lbImg').src = _lbPhotos[_lbIdx]; } }
+function lbNext() { if (_lbIdx < _lbPhotos.length-1) { _lbIdx++; document.getElementById('lbImg').src = _lbPhotos[_lbIdx]; } }
+document.addEventListener('keydown', e => {
+  if (!document.getElementById('lightbox').classList.contains('show')) return;
+  if (e.key === 'Escape') closeLightbox();
+  if (e.key === 'ArrowLeft') lbPrev();
+  if (e.key === 'ArrowRight') lbNext();
+});
 </script>
+
+<div id="lightbox" class="lightbox" onclick="closeLightbox()">
+  <button class="lightbox-close" onclick="event.stopPropagation();closeLightbox()">✕</button>
+  <button class="lightbox-nav lightbox-prev" id="lbPrev" onclick="event.stopPropagation();lbPrev()">‹</button>
+  <img id="lbImg" src="" onclick="event.stopPropagation()">
+  <button class="lightbox-nav lightbox-next" id="lbNext" onclick="event.stopPropagation();lbNext()">›</button>
+</div>
 </body>
 </html>
