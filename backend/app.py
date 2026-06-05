@@ -116,6 +116,31 @@ app.include_router(analyze_router)
 app.include_router(diary_router)
 
 
+# ---- 简易限流中间件 ----
+from collections import defaultdict
+import time as _time
+
+_rate_window = 60  # 60 秒窗口
+_rate_limit = 30    # 每窗口最多 30 次请求（除静态文件外）
+_rate_buckets: dict[str, list[float]] = defaultdict(list)
+
+@app.middleware("http")
+async def rate_limit_middleware(request, call_next):
+    path = request.url.path
+    # 静态文件和健康检查不限流
+    if path.startswith("/photos") or path == "/health" or path == "/":
+        return await call_next(request)
+    client = request.client.host if request.client else "unknown"
+    now = _time.time()
+    bucket = _rate_buckets[client]
+    # 清理过期记录
+    bucket[:] = [t for t in bucket if now - t < _rate_window]
+    if len(bucket) >= _rate_limit:
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"detail":"请求过于频繁，请稍后再试"}, status_code=429)
+    bucket.append(now)
+    return await call_next(request)
+
 # ---- Health Check ----
 @app.get("/health", tags=["system"])
 async def health_check():

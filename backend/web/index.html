@@ -489,9 +489,28 @@
   };
   document.getElementById('pwaManifest').href = URL.createObjectURL(new Blob([JSON.stringify(m)],{type:'application/json'}));
   if('serviceWorker' in navigator){
-    navigator.serviceWorker.register(URL.createObjectURL(new Blob([
-      'self.addEventListener("install",e=>self.skipWaiting());self.addEventListener("activate",e=>e.waitUntil(clients.claim()));self.addEventListener("fetch",e=>{e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).then(resp=>{if(resp.ok){const c=resp.clone();caches.open("v1").then(c2=>c2.put(e.request,c));}return resp;}).catch(()=>caches.match(e.request))))});'
-    ],{type:'application/javascript'})));
+    navigator.serviceWorker.register(URL.createObjectURL(new Blob([`
+const CACHE='td-v2';
+self.addEventListener('install',e=>{
+  e.waitUntil(caches.open(CACHE).then(c=>c.addAll(['/'])));
+  self.skipWaiting();
+});
+self.addEventListener('activate',e=>{
+  e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))));
+  clients.claim();
+});
+self.addEventListener('fetch',e=>{
+  const url=new URL(e.request.url);
+  if(url.pathname.startsWith('/photos/')||url.pathname.startsWith('/diary/')||url.pathname.startsWith('/analyze')||url.pathname==='/upload'){
+    e.respondWith(fetch(e.request).catch(()=>caches.match(e.request)));
+    return;
+  }
+  e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).then(resp=>{
+    if(resp.ok){const c=resp.clone();caches.open(CACHE).then(c2=>c2.put(e.request,c));}
+    return resp;
+  }).catch(()=>caches.match(e.request))));
+});
+`.trim()],{type:'application/javascript'})));
   }
 })();
 </script>
@@ -524,13 +543,22 @@
 <!-- ====== 新分析 ====== -->
 <div id="view-new">
 
+  <div id="recoverBanner" class="card hidden" style="background:#FFF9E6;border:2px solid var(--w);text-align:center">
+    <div style="font-size:14px;font-weight:600;margin-bottom:8px">📋 检测到上次未完成的会话</div>
+    <div style="font-size:12px;color:var(--s);margin-bottom:10px" id="recoverInfo"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary btn-small" onclick="recoverSession()" style="flex:1">🔄 恢复</button>
+      <button class="btn btn-secondary btn-small" onclick="clearSession()" style="flex:1">🗑️ 丢弃</button>
+    </div>
+  </div>
+
   <div class="card">
     <div class="card-title"><span class="step-num" id="step1Num">1</span>选择照片</div>
     <div class="drop-zone" id="dropZone">
       <span class="drop-zone-icon">📷</span>
       <span class="drop-zone-text">点击选择或拖拽照片<br><small>HEIC / JPG / PNG · 支持多张</small></span>
     </div>
-    <input type="file" id="fileInput" accept="image/*" multiple hidden>
+    <input type="file" id="fileInput" accept="image/*" capture="environment" multiple hidden>
     <div class="thumb-grid" id="thumbGrid"></div>
 
     <div class="section-div"></div>
@@ -623,6 +651,50 @@ function confirmNickname() {
   gate.style.display = 'none';
   toast('欢迎，' + nickname, 'success');
   loadHistory();
+  checkRecoverSession();
+}
+
+// ===== 会话恢复 =====
+function checkRecoverSession() {
+  try {
+    const raw = localStorage.getItem('td_session');
+    if (!raw) return;
+    const sess = JSON.parse(raw);
+    // 超过 24 小时的缓存自动丢弃
+    if (Date.now() - sess.ts > 86400000) { localStorage.removeItem('td_session'); return; }
+    document.getElementById('recoverInfo').textContent =
+      `${sess.photoIds.length} 张照片已完成分析，可直接生成日记`;
+    document.getElementById('recoverBanner').classList.remove('hidden');
+  } catch(e) { localStorage.removeItem('td_session'); }
+}
+function recoverSession() {
+  try {
+    const sess = JSON.parse(localStorage.getItem('td_session'));
+    state.photoIds = sess.photoIds;
+    state.uploadResults = sess.uploadResults;
+    state.analyzeResults = sess.analyzeResults;
+    document.getElementById('recoverBanner').classList.add('hidden');
+    // 显示已分析状态，跳转到生成日记
+    el('step-analyze').classList.remove('hidden');
+    document.getElementById('step2Num').classList.add('done');
+    el('btnAnalyze').classList.add('hidden');
+    el('analyzeProgress').classList.add('hidden');
+    el('analyzeResults').innerHTML = state.analyzeResults.map((r,i) => {
+      const ai=r.ai_analysis||{}, loc=r.location||{};
+      return `<div class="photo-row"><span class="photo-num">#${i+1}</span><div class="photo-info"><strong>${escHtml(ai.diary_sentence||'')}</strong><br><span class="meta">📍${escHtml(loc.city||'')} ${escHtml(loc.place_name||'')} · ${escHtml(ai.scene_type||'?')} · ${escHtml(ai.activity||'?')}</span>${ai.food?.length?`<br><span class="meta">🍽️ ${escHtml(ai.food.join('、'))}</span>`:''}${ai.fun_fact?`<br><span class="meta">💡 ${escHtml(ai.fun_fact)}</span>`:''}</div></div>`;
+    }).join('');
+    el('step-diary').classList.remove('hidden');
+    el('btnDiary').classList.remove('hidden');
+    el('diaryProgress').classList.add('hidden');
+    el('btnDiary').disabled = false;
+    el('step-diary').scrollIntoView({behavior:'smooth'});
+    toast('已恢复 ' + state.analyzeResults.length + ' 张照片', 'success');
+  } catch(e) { toast('恢复失败', 'error'); }
+}
+function clearSession() {
+  localStorage.removeItem('td_session');
+  document.getElementById('recoverBanner').classList.add('hidden');
+  toast('已丢弃', 'success');
 }
 
 // ===== 视图切换 =====
@@ -720,17 +792,33 @@ el('btnUpload').addEventListener('click', async () => {
   if (d) extra.client_taken_time = `${d} ${t}:00`;
   if (p) { extra.client_place_name = p; if (a) extra.client_address = a; }
 
-  for (let i=0;i<state.files.length;i++) {
-    const fd = new FormData(); fd.append('file', state.files[i]);
+  // 并发上传（每次 3 张）
+  let completed = 0; const total = state.files.length;
+  const uploadOne = async (file, idx) => {
+    const fd = new FormData(); fd.append('file', file);
     Object.entries(extra).forEach(([k,v]) => fd.append(k,v));
     try {
-      const r = await fetch('/upload',{method:'POST',body:fd}); const d2 = await r.json();
-      if (d2.success) { state.uploadResults.push(d2); state.photoIds.push(d2.photo_id); }
-      else state.uploadResults.push({success:false,filename:state.files[i].name,error:d2.detail});
-    } catch(err) { state.uploadResults.push({success:false,filename:state.files[i].name,error:err.message}); }
-    fill.style.width = `${((i+1)/state.files.length)*100}%`;
-    st.textContent = `${i+1}/${state.files.length}`;
+      const r = await fetchRetry('/upload',{method:'POST',body:fd});
+      const d2 = await r.json();
+      return {idx, result: d2.success ? d2 : {success:false,filename:file.name,error:d2.detail}};
+    } catch(err) { return {idx, result:{success:false,filename:file.name,error:err.message}}; }
+  };
+
+  const pending = state.files.map((f,i) => ({f,i}));
+  while (pending.length) {
+    const batch = pending.splice(0, 3);
+    const batchResults = await Promise.all(batch.map(({f,i}) => uploadOne(f,i)));
+    for (const {idx, result} of batchResults) {
+      state.uploadResults[idx] = result;
+      if (result.success) state.photoIds.push(result.photo_id);
+      completed++;
+    }
+    fill.style.width = `${(completed/total)*100}%`;
+    st.textContent = `${completed}/${total}`;
   }
+  // 清理 null 项（失败的）
+  state.uploadResults = state.uploadResults.filter(Boolean);
+  state.photoIds = [...new Set(state.photoIds)];
   bar.classList.add('hidden');
 
   if (state.photoIds.length) {
@@ -788,6 +876,8 @@ el('btnAnalyze').addEventListener('click', async () => {
   }).join('');
 
   if (state.analyzeResults.length) {
+    // 缓存分析结果，防止生成失败后丢失
+    try { localStorage.setItem('td_session', JSON.stringify({photoIds:state.photoIds,uploadResults:state.uploadResults,analyzeResults:state.analyzeResults,ts:Date.now()})); } catch(e){}
     el('step-diary').classList.remove('hidden'); el('diaryProgress').classList.remove('hidden');
     el('btnDiary').classList.add('hidden'); el('step-diary').scrollIntoView({behavior:'smooth'});
     el('btnDiary').click();
@@ -804,6 +894,7 @@ el('btnDiary').addEventListener('click', async () => {
     state.diaryResult = await r.json();
   } catch(err) { el('step-result').classList.remove('hidden'); el('step-result').innerHTML=`<p class="text-error">${err.message}</p>`; return; }
   if (state.diaryResult?.diary_id) {
+    localStorage.removeItem('td_session'); // 生成成功，清除缓存
     try { const dr=await fetch(`/diary/${state.diaryResult.diary_id}`); const dd=await dr.json(); if(dd.success) state.diaryPhotos=dd.photos||[]; } catch(e){}
   }
   el('diaryProgress').classList.add('hidden'); document.getElementById('step3Num').classList.add('done');
@@ -825,8 +916,9 @@ function renderDiaryResult(targetId, mapId) {
       <button onclick="restyleDiary('正式')">📰 正式版</button>
       <button onclick="restyleDiary('简短')">⚡ 简短版</button>
       <button onclick="restyleDiary('科普')">🔬 科普版</button>
-      <button onclick="exportMD()">📥 Markdown</button>
-    <button onclick="copyDiaryText()">📋 复制文本</button>
+      <button onclick="exportMD()">📥 MD</button>
+      <button onclick="copyDiaryText()">📋 复制</button>
+      <button onclick="shareCard()">📤 分享</button>
     </div>
     <p style="font-size:13px;color:var(--s);margin-bottom:10px">📅${d.date||'?'} · 📍${d.city||'未知'} · 📷${d.photo_count||0}张</p>
     <div style="margin-bottom:10px">${(d.keywords||[]).map(k=>`<span class="tag">${k}</span>`).join('')}</div>
@@ -1538,6 +1630,36 @@ function stopVoice() {
   btn.style.color = '';
   btn.style.borderColor = 'var(--l)';
 }
+function copyDiaryText() {
+  const d = state.diaryResult;
+  if (!d) return;
+  const text = [d.title, '', d.date + ' · ' + (d.city||'未知'), '', d.content].join('\n');
+  navigator.clipboard.writeText(text).then(() => toast('已复制', 'success')).catch(() => toast('复制失败', 'error'));
+}
+
+async function shareCard() {
+  const d = state.diaryResult;
+  if (!d) return;
+  const container = document.getElementById('step-result') || document.getElementById('historyCard');
+  if (!container) return;
+  toast('生成中...', '');
+  try {
+    const canvas = await html2canvas(container.querySelector('.card') || container, {
+      scale: 2, backgroundColor: getComputedStyle(document.body).getPropertyValue('--card').trim() || '#fff',
+    });
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    if (navigator.share) {
+      const file = new File([blob], 'travel_diary.png', {type:'image/png'});
+      await navigator.share({title:d.title, text:d.date+' '+d.city, files:[file]});
+    } else {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = (d.title||'游记')+'_卡片.png';
+      a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
+      toast('已下载', 'success');
+    }
+  } catch(e) { if (e.name !== 'AbortError') toast('分享失败: '+e.message, 'error'); }
+}
 
 function exportMD() {
   const d = state.diaryResult;
@@ -1559,6 +1681,29 @@ function exportMD() {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   toast('已下载', 'success');
 }
+
+// ===== 下拉刷新（历史视图）=====
+(function(){
+  let startY = 0, pulling = false;
+  document.addEventListener('touchstart', e => {
+    if (document.getElementById('view-history').classList.contains('hidden')) return;
+    if (window.scrollY > 5) return;
+    startY = e.touches[0].clientY;
+    pulling = true;
+  }, {passive:true});
+  document.addEventListener('touchmove', e => {
+    if (!pulling) return;
+    const dy = e.touches[0].clientY - startY;
+    if (dy > 60) {
+      pulling = false;
+      if (!document.getElementById('view-history').classList.contains('hidden')) {
+        loadHistory();
+        toast('刷新中...', '');
+      }
+    }
+  }, {passive:true});
+  document.addEventListener('touchend', () => { pulling = false; });
+})();
 </script>
 </body>
 </html>
