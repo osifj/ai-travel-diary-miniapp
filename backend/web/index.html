@@ -325,6 +325,7 @@
 
   /* 辅助 */
   .hidden { display: none !important; }
+  .fade-view { animation: fadeIn 0.25s ease-out both; }
   .text-error { color: var(--r); font-size: 13px; }
   .text-ok { color: var(--g); }
   .section-div { border-top: 1px solid #F0F0F3; margin: 14px 0; }
@@ -728,8 +729,10 @@ function clearSession() {
 
 // ===== 视图切换 =====
 function switchView(v) {
-  document.getElementById('view-new').classList.toggle('hidden', v !== 'new');
-  document.getElementById('view-history').classList.toggle('hidden', v !== 'history');
+  const vn = document.getElementById('view-new');
+  const vh = document.getElementById('view-history');
+  if (v === 'new') { vh.classList.add('hidden'); vn.classList.remove('hidden'); vn.classList.add('fade-view'); }
+  else { vn.classList.add('hidden'); vh.classList.remove('hidden'); vh.classList.add('fade-view'); }
   document.getElementById('btnNew').classList.toggle('on', v === 'new');
   document.getElementById('btnHistory').classList.toggle('on', v === 'history');
   document.getElementById('searchInput').style.display = v === 'history' ? '' : 'none';
@@ -1257,11 +1260,12 @@ async function loadHistory() {
     el('historyList').innerHTML = d.diaries.map((di,i) => `
       <div class="diary-card" style="position:relative;animation-delay:${i*0.06}s" id="card-${di.id}" onclick="${batchMode ? `toggleSelect(${di.id},event)` : `showDiaryDetail(${di.id})`}">
         <div class="diary-check${selectedDiaries.has(di.id)?' checked':''}" onclick="event.stopPropagation();toggleSelect(${di.id},event)">${selectedDiaries.has(di.id)?'✓':''}</div>
+        ${di.thumb ? `<img src="${di.thumb}" class="diary-card-thumb" loading="lazy" onerror="this.style.display='none'">` : ''}
         <div class="diary-card-body">
-          <div class="diary-card-title">${di.title}</div>
-          <div class="diary-card-meta">📅${di.date} · 📍${di.city||'未知'} · 📷${(di.photo_ids||[]).length}张</div>
-          <div class="diary-card-preview">${(di.content||'').slice(0,100)}...</div>
-          <div style="margin-top:4px">${(di.keywords||[]).slice(0,4).map(k=>`<span class="tag">${k}</span>`).join('')}</div>
+          <div class="diary-card-title">${escHtml(di.title)}</div>
+          <div class="diary-card-meta">📅${di.date} · 📍${escHtml(di.city||'未知')} · 📷${(di.photo_ids||[]).length}张</div>
+          <div class="diary-card-preview">${escHtml((di.content||'').slice(0,100))}...</div>
+          <div style="margin-top:4px">${(di.keywords||[]).slice(0,4).map(k=>`<span class="tag">${escHtml(k)}</span>`).join('')}</div>
         </div>
         <button class="del-btn" onclick="event.stopPropagation();deleteDiary(${di.id})" title="删除">🗑️</button>
       </div>

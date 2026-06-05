@@ -282,6 +282,24 @@ async def list_diaries(user_id: str = "default", limit: int = 20, q: str = ""):
         diaries = search_diaries(user_id=user_id, query=q, limit=min(limit, 50))
     else:
         diaries = get_diaries_by_user(user_id=user_id, limit=min(limit, 50))
+    # 为每篇日记附加首张照片缩略图
+    from models.database import get_photos_by_ids
+    import os as _os
+    for diary in diaries:
+        photo_ids = diary.get("photo_ids", [])
+        if isinstance(photo_ids, str):
+            try: photo_ids = json.loads(photo_ids)
+            except Exception: photo_ids = []
+        if isinstance(photo_ids, list) and photo_ids:
+            try:
+                first = get_photos_by_ids([photo_ids[0]])
+                if first:
+                    diary["thumb"] = "/photos/" + _os.path.basename(first[0].get("file_path", ""))
+            except Exception:
+                diary["thumb"] = None
+        else:
+            diary["thumb"] = None
+
     return {
         "success": True,
         "count": len(diaries),
