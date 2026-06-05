@@ -17,7 +17,7 @@ DB_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
 DB_PATH = os.path.join(DB_DIR, "travel_diary.db")
 
 
-_connection: sqlite3.Connection | None = None
+_connection = None  # sqlite3.Connection | None
 
 def get_connection() -> sqlite3.Connection:
     """获取数据库连接（缓存复用，避免每次查询都 open/close）。"""

@@ -835,7 +835,7 @@ function renderDiaryResult(targetId, mapId) {
     <div id="${mapId}" class="map-container" style="position:relative">
       <button onclick="exportMapImage('${mapId}')" style="position:absolute;top:8px;right:8px;z-index:1000;background:var(--card);border:none;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.15)" title="导出地图图片">📥 导出地图</button>
     </div>
-    <div class="diary-content">${ps.map(p=>`<p>${p}</p>`).join('')}</div>
+    <div class="diary-content">${ps.map(p=>`<p>${escHtml(p)}</p>`).join('')}</div>
     <div class="section-div"></div>
     <div class="card-title" style="font-size:14px">📷 追加照片</div>
     <input type="file" id="addPhotoInput" accept="image/*" multiple hidden onchange="handleAddPhotos(event)">
@@ -1552,9 +1552,12 @@ function exportMD() {
   ];
   const blob = new Blob([lines.join('\n')], { type: 'text/markdown' });
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
+  const url = URL.createObjectURL(blob);
+  a.href = url;
   a.download = (d.title || '游记') + '.md';
-  a.click(); toast('已下载', 'success');
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast('已下载', 'success');
 }
 </script>
 </body>
