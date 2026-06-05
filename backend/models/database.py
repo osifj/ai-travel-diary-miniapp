@@ -17,14 +17,27 @@ DB_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
 DB_PATH = os.path.join(DB_DIR, "travel_diary.db")
 
 
+_connection: sqlite3.Connection | None = None
+
 def get_connection() -> sqlite3.Connection:
-    """获取数据库连接 (SQLite 线程安全)."""
+    """获取数据库连接（缓存复用，避免每次查询都 open/close）。"""
+    global _connection
+    if _connection is not None:
+        return _connection
     os.makedirs(DB_DIR, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    conn.row_factory = sqlite3.Row  # 支持按列名访问
-    conn.execute("PRAGMA journal_mode=WAL")  # 更好的并发
-    conn.execute("PRAGMA foreign_keys=ON")
-    return conn
+    _connection = sqlite3.connect(DB_PATH, check_same_thread=False)
+    _connection.row_factory = sqlite3.Row
+    _connection.execute("PRAGMA journal_mode=WAL")
+    _connection.execute("PRAGMA foreign_keys=ON")
+    return _connection
+
+
+def close_db():
+    """关闭数据库连接（应用退出时调用）。"""
+    global _connection
+    if _connection:
+        _connection.close()
+        _connection = None
 
 
 def init_db():
@@ -110,7 +123,6 @@ def init_db():
     _ensure_diary_columns(cursor)
 
     conn.commit()
-    conn.close()
 
 
 def _ensure_photo_columns(cursor: sqlite3.Cursor):
@@ -168,7 +180,6 @@ def insert_photo(
     )
     conn.commit()
     photo_id = cursor.lastrowid
-    conn.close()
     return photo_id
 
 
@@ -201,7 +212,6 @@ def update_photo_exif(
          photo_id)
     )
     conn.commit()
-    conn.close()
 
 
 def update_photo_client_metadata(
@@ -259,7 +269,6 @@ def update_photo_client_metadata(
         )
     )
     conn.commit()
-    conn.close()
 
 
 def update_photo_location(
@@ -285,7 +294,6 @@ def update_photo_location(
          location_status, location_source, photo_id)
     )
     conn.commit()
-    conn.close()
 
 
 def update_photo_ai_result(
@@ -322,14 +330,12 @@ def update_photo_ai_result(
          photo_id)
     )
     conn.commit()
-    conn.close()
 
 
 def get_photo(photo_id: int) -> Optional[dict]:
     """获取单张照片记录."""
     conn = get_connection()
     row = conn.execute("SELECT * FROM photos WHERE id = ?", (photo_id,)).fetchone()
-    conn.close()
     if row is None:
         return None
     d = dict(row)
@@ -353,7 +359,6 @@ def get_photos_by_ids(photo_ids: list[int]) -> list[dict]:
         f"SELECT * FROM photos WHERE id IN ({placeholders})",
         photo_ids
     ).fetchall()
-    conn.close()
     results = []
     for row in rows:
         d = dict(row)
@@ -395,7 +400,6 @@ def insert_diary(
     )
     conn.commit()
     diary_id = cursor.lastrowid
-    conn.close()
     return diary_id
 
 
@@ -403,7 +407,6 @@ def get_diary(diary_id: int) -> Optional[dict]:
     """获取单篇日志."""
     conn = get_connection()
     row = conn.execute("SELECT * FROM diaries WHERE id = ?", (diary_id,)).fetchone()
-    conn.close()
     if row is None:
         return None
     d = dict(row)
@@ -430,7 +433,6 @@ def update_diary_refined(
         (user_notes, refined_content, diary_id)
     )
     conn.commit()
-    conn.close()
 
 
 def save_chat_history(diary_id: int, chat_history: list[dict]):
@@ -439,7 +441,6 @@ def save_chat_history(diary_id: int, chat_history: list[dict]):
     conn.execute("UPDATE diaries SET chat_history = ? WHERE id = ?",
                  (json.dumps(chat_history, ensure_ascii=False), diary_id))
     conn.commit()
-    conn.close()
 
 
 def delete_diary(diary_id: int) -> bool:
@@ -448,7 +449,6 @@ def delete_diary(diary_id: int) -> bool:
     cursor = conn.execute("DELETE FROM diaries WHERE id = ?", (diary_id,))
     conn.commit()
     deleted = cursor.rowcount > 0
-    conn.close()
     return deleted
 
 
@@ -462,7 +462,6 @@ def search_diaries(user_id: str, query: str, limit: int = 50) -> list[dict]:
            ORDER BY created_at DESC LIMIT ?""",
         (user_id, like, like, like, limit)
     ).fetchall()
-    conn.close()
     results = []
     for row in rows:
         d = dict(row)
@@ -481,7 +480,6 @@ def get_diaries_by_user(user_id: str = "default", limit: int = 20) -> list[dict]
         "SELECT * FROM diaries WHERE user_id = ? ORDER BY created_at DESC LIMIT ?",
         (user_id, limit)
     ).fetchall()
-    conn.close()
     results = []
     for row in rows:
         d = dict(row)

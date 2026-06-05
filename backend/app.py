@@ -91,6 +91,14 @@ async def startup_event():
     logger.info("Database initialized.")
 
 
+@app.on_event("shutdown")
+async def shutdown_event():
+    """应用关闭时清理数据库连接."""
+    from models.database import close_db
+    close_db()
+    logger.info("Database connection closed.")
+
+
 # ---- 静态文件服务 (照片回看) ----
 from fastapi.staticfiles import StaticFiles
 

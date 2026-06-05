@@ -335,45 +335,27 @@
   textarea:focus { border-color: var(--p2); }
   .empty-state { text-align: center; padding: 60px 20px; color: var(--s); }
 
-  /* 暗色模式 */
-  @media (prefers-color-scheme: dark) {
-    body.dark-auto { --bg: #12122a; --card: #1a1a3e; --t: #f0f0f0; --s: #bbb; --l: #444; }
-    body.dark-auto .card { box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
-    body.dark-auto input, body.dark-auto textarea { background: #1e1e4a; color: #f0f0f0; border-color: #444; }
-    body.dark-auto .drop-zone { background: #16163a; border-color: #444; }
-    body.dark-auto .drop-zone:hover { background: #1a1a44; border-color: var(--p2); }
-    body.dark-auto .nav-tab { background: transparent; color: #bbb; }
-    body.dark-auto .nav-tab.on { background: var(--p); color: #fff; }
-    body.dark-auto .tag { background: #1a3a6c; color: #aac; }
-    body.dark-auto .warn-box { background: #2a2a1a; color: #ddd; }
-    body.dark-auto .btn-secondary { background: #1e1e4a; color: #ddd; border-color: #555; }
-    body.dark-auto .btn-secondary:active { background: #2a2a5a; }
-    body.dark-auto .action-row button { background: #1e1e4a; color: #ddd; border-color: #444; }
-    body.dark-auto .action-row button:active { background: var(--p); }
-    body.dark-auto .diary-content { color: #eee; }
-    body.dark-auto .photo-row + .photo-row { border-color: #2a2a4a; }
-    body.dark-auto .section-div { border-color: #2a2a4a; }
-    body.dark-auto .info-box.weather { background: #1a1a40; color: #aab; }
-    body.dark-auto .info-box.place { background: #2a2a1a; color: #ccb; }
-  }
-  body.dark-on { --bg: #12122a; --card: #1a1a3e; --t: #f0f0f0; --s: #bbb; --l: #444; }
-  body.dark-on .card { box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
-  body.dark-on input, body.dark-on textarea { background: #1e1e4a; color: #f0f0f0; border-color: #444; }
-  body.dark-on .drop-zone { background: #16163a; border-color: #444; }
-  body.dark-on .drop-zone:hover { background: #1a1a44; border-color: var(--p2); }
-  body.dark-on .nav-tab { background: transparent; color: #bbb; }
-  body.dark-on .nav-tab.on { background: var(--p); color: #fff; }
-  body.dark-on .tag { background: #1a3a6c; color: #aac; }
-  body.dark-on .warn-box { background: #2a2a1a; color: #ddd; }
-  body.dark-on .btn-secondary { background: #1e1e4a; color: #ddd; border-color: #555; }
-  body.dark-on .btn-secondary:active { background: #2a2a5a; }
-  body.dark-on .action-row button { background: #1e1e4a; color: #ddd; border-color: #444; }
-  body.dark-on .action-row button:active { background: var(--p); }
-  body.dark-on .diary-content { color: #eee; }
-  body.dark-on .photo-row + .photo-row { border-color: #2a2a4a; }
-  body.dark-on .section-div { border-color: #2a2a4a; }
-  body.dark-on .info-box.weather { background: #1a1a40; color: #aab; }
-  body.dark-on .info-box.place { background: #2a2a1a; color: #ccb; }
+  /* 暗色模式 — 统一 .dark 类（JS 控制开关） */
+  body.dark { --bg: #12122a; --card: #1a1a3e; --t: #f0f0f0; --s: #bbb; --l: #444; }
+  body.dark .card { box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
+  body.dark input, body.dark textarea { background: #1e1e4a; color: #f0f0f0; border-color: #444; }
+  body.dark .drop-zone { background: #16163a; border-color: #444; }
+  body.dark .drop-zone:hover { background: #1a1a44; border-color: var(--p2); }
+  body.dark .nav-tab { background: transparent; color: #bbb; }
+  body.dark .nav-tab.on { background: var(--p); color: #fff; }
+  body.dark .tag { background: #1a3a6c; color: #aac; }
+  body.dark .warn-box { background: #2a2a1a; color: #ddd; }
+  body.dark .btn-secondary { background: #1e1e4a; color: #ddd; border-color: #555; }
+  body.dark .btn-secondary:active { background: #2a2a5a; }
+  body.dark .action-row button { background: #1e1e4a; color: #ddd; border-color: #444; }
+  body.dark .action-row button:active { background: var(--p); }
+  body.dark .diary-content { color: #eee; }
+  body.dark .photo-row + .photo-row { border-color: #2a2a4a; }
+  body.dark .section-div { border-color: #2a2a4a; }
+  body.dark .info-box.weather { background: #1a1a40; color: #aab; }
+  body.dark .info-box.place { background: #2a2a1a; color: #ccb; }
+  body.dark .chat-msg.ai .chat-bubble { background: #2a2a4a; color: #eee; }
+  body.dark .nav { background: rgba(18,18,42,0.85); }
   .dark-btn { font-size: 16px; padding: 4px 6px; border-radius: 6px; background: none; border: none; cursor: pointer; }
 
   .spinner {
@@ -417,7 +399,6 @@
     background: #F0F0F5; color: var(--t); border-bottom-left-radius: 4px;
     animation-name:slideInLeft;
   }
-  body.dark-on .chat-msg.ai .chat-bubble, body.dark-auto .chat-msg.ai .chat-bubble { background: #2a2a4a; color: #eee; }
   .chat-typing { padding: 8px 14px; font-size: 13px; color: var(--s); }
   .quick-btn {
     padding: 5px 10px; border-radius: 14px; border: 1px solid var(--l);
@@ -617,6 +598,13 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
+async function fetchRetry(url, opts, retries=2) {
+  for (let i=0; i<=retries; i++) {
+    try { return await fetch(url, opts); }
+    catch(e) { if (i===retries) throw e; await new Promise(r=>setTimeout(r, 800*(i+1))); }
+  }
+}
+
 // ===== 昵称 =====
 let nickname = localStorage.getItem('travel_diary_nickname') || '';
 const nickInput = document.getElementById('nicknameInput');
@@ -647,17 +635,26 @@ function switchView(v) {
   if (v === 'history') { el('historyList').innerHTML='<div style="text-align:center;padding:60px"><div class="spinner"></div></div>'; loadHistory(); loadStats(); }
 }
 
-// 暗色模式
-(function(){
-  const s = localStorage.getItem('td_dark');
-  if (s === 'on') document.body.className = 'dark-on';
-  else if (s !== 'off') document.body.className = 'dark-auto';
-})();
+// 暗色模式 — 统一 .dark 类，支持自动/开/关三态
+const darkMedia = window.matchMedia('(prefers-color-scheme: dark)');
+function applyDark() {
+  const s = localStorage.getItem('td_dark') || 'auto';
+  if (s === 'on') document.body.classList.add('dark');
+  else if (s === 'auto') document.body.classList.toggle('dark', darkMedia.matches);
+  else document.body.classList.remove('dark');
+}
+applyDark();
+darkMedia.addEventListener('change', () => {
+  if ((localStorage.getItem('td_dark') || 'auto') === 'auto') applyDark();
+});
 function toggleDark() {
-  const b = document.body, btn = document.getElementById('btnDark');
-  if (b.classList.contains('dark-on')) { b.className = 'dark-auto'; localStorage.setItem('td_dark','auto'); btn.textContent='🌙'; }
-  else if (b.classList.contains('dark-auto')) { b.className = ''; localStorage.setItem('td_dark','off'); btn.textContent='☀️'; }
-  else { b.className = 'dark-on'; localStorage.setItem('td_dark','on'); btn.textContent='🌙'; }
+  const s = localStorage.getItem('td_dark') || 'auto';
+  const next = s === 'on' ? 'off' : s === 'off' ? 'auto' : 'on';
+  localStorage.setItem('td_dark', next);
+  const btn = document.getElementById('btnDark');
+  if (next === 'on') { document.body.classList.add('dark'); btn.textContent = '🌙'; }
+  else if (next === 'auto') { document.body.classList.toggle('dark', darkMedia.matches); btn.textContent = '🌙'; }
+  else { document.body.classList.remove('dark'); btn.textContent = '☀️'; }
 }
 
 // ===== 状态 =====
@@ -767,7 +764,7 @@ el('btnAnalyze').addEventListener('click', async () => {
   el('analyzeProgress').prepend(progressDiv);
 
   try {
-    const r = await fetch('/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({photo_ids:state.photoIds,geocode:true})});
+    const r = await fetchRetry('/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({photo_ids:state.photoIds,geocode:true})});
     const d = await r.json();
     state.analyzeResults = d.results||[];
     // 按原顺序排序
@@ -803,7 +800,7 @@ el('btnAnalyze').addEventListener('click', async () => {
 el('btnDiary').addEventListener('click', async () => {
   el('btnDiary').disabled = true; el('diaryProgress').classList.remove('hidden');
   try {
-    const r = await fetch('/diary/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({photo_ids:state.photoIds,user_id:nickname||'default'})});
+    const r = await fetchRetry('/diary/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({photo_ids:state.photoIds,user_id:nickname||'default'})});
     state.diaryResult = await r.json();
   } catch(err) { el('step-result').classList.remove('hidden'); el('step-result').innerHTML=`<p class="text-error">${err.message}</p>`; return; }
   if (state.diaryResult?.diary_id) {
@@ -984,13 +981,20 @@ async function integrateDiary() {
   btn.disabled = false; btn.textContent = '✅ 整合进日记';
 }
 
+let _chatRenderScheduled = false;
 function renderChat() {
-  const area = document.getElementById('chatMessages');
-  area.innerHTML = state.chatMessages.map(m =>
-    '<div class="chat-msg ' + (m.role === 'user' ? 'user' : 'ai') + '">' +
-    '<div class="chat-bubble">' + m.content.replace(/\n/g, '<br>') + '</div></div>'
-  ).join('');
-  area.scrollTop = area.scrollHeight;
+  // SSE 流式时批量渲染，避免每 chunk 都全量重绘
+  if (_chatRenderScheduled) return;
+  _chatRenderScheduled = true;
+  requestAnimationFrame(() => {
+    _chatRenderScheduled = false;
+    const area = document.getElementById('chatMessages');
+    area.innerHTML = state.chatMessages.map(m =>
+      '<div class="chat-msg ' + (m.role === 'user' ? 'user' : 'ai') + '">' +
+      '<div class="chat-bubble">' + m.content.replace(/\n/g, '<br>') + '</div></div>'
+    ).join('');
+    area.scrollTop = area.scrollHeight;
+  });
 }
 
 // ===== 追加照片 =====
@@ -1033,7 +1037,7 @@ async function handleAddPhotos(event) {
   progress.innerHTML = `<div class="dot-pulse"><span></span><span></span><span></span></div><p style="color:var(--s);font-size:12px">重新生成日记...</p>`;
 
   try {
-    const r2 = await fetch('/diary/generate', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({photo_ids:state.photoIds,user_id:nickname||'default'}) });
+    const r2 = await fetchRetry('/diary/generate', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({photo_ids:state.photoIds,user_id:nickname||'default'}) });
     const d4 = await r2.json();
     if (d4.success) {
       state.diaryResult = d4;
@@ -1310,7 +1314,7 @@ async function restyleDiary(style) {
 
   let needsCleanup = true;
   try {
-    const r = await fetch(`/diary/${state.diaryResult.diary_id}/restyle`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({style}) });
+    const r = await fetchRetry(`/diary/${state.diaryResult.diary_id}/restyle`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({style}) });
     const d = await r.json();
     if (d.success) {
       needsCleanup = false; // DOM 会被 renderDiaryResult 重建
